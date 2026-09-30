@@ -30,3 +30,4 @@ dependencyResolutionManagement {
 rootProject.name = "Pangu My Little Alien"
 include(":app")
 include(":editor-asset")
+include(":game-logic")

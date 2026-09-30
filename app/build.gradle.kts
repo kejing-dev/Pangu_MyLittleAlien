@@ -30,7 +30,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf(".bundle")
+        noCompress += listOf(".bundle", ".glb")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.appcompat)
     implementation(project(":editor-asset"))
+    implementation(project(":game-logic"))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
