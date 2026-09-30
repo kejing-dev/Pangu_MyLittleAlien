@@ -55,5 +55,22 @@ data class Quat(val x: Float, val y: Float, val z: Float, val w: Float) {
 
         /** Rotation of [radians] around +Y (counter-clockwise seen from above). */
         fun fromYaw(radians: Float): Quat = fromAxisAngle(Vec3.UP, radians)
+
+        /** Shortest rotation turning direction [from] onto direction [to]. */
+        fun fromTo(from: Vec3, to: Vec3): Quat {
+            val a = from.normalized()
+            val b = to.normalized()
+            val d = a dot b
+            if (d < -0.999999f) {
+                // Opposite vectors: rotate 180° around any axis perpendicular to a.
+                var axis = Vec3.RIGHT cross a
+                if (axis.lengthSquared() < 1e-6f) axis = Vec3.UP cross a
+                return fromAxisAngle(axis, PI_F)
+            }
+            val c = a cross b
+            return Quat(c.x, c.y, c.z, 1f + d).normalized()
+        }
+
+        private const val PI_F = Math.PI.toFloat()
     }
 }

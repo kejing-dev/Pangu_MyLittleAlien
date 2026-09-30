@@ -37,6 +37,17 @@ class QuatTest {
     }
 
     @Test
+    fun fromToTurnsOneDirectionOntoAnother() {
+        val target = Vec3(-0.55f, -0.75f, -0.9f).normalized()
+        val r = Quat.fromTo(Vec3.FORWARD, target).rotate(Vec3.FORWARD)
+        assertEquals(target.x, r.x, eps)
+        assertEquals(target.y, r.y, eps)
+        assertEquals(target.z, r.z, eps)
+        val flipped = Quat.fromTo(Vec3.FORWARD, -Vec3.FORWARD).rotate(Vec3.FORWARD)
+        assertEquals(1f, flipped.z, eps)
+    }
+
+    @Test
     fun poseInverseRoundTrips() {
         val pose = Pose(Vec3(1f, 2f, 3f), Quat.fromYaw(1.1f))
         val p = Vec3(-0.5f, 0.25f, 4f)
