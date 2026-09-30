@@ -1,0 +1,648 @@
+{
+ "entries": [
+  {
+   "k": "ui.lang.en",
+   "v": "English"
+  },
+  {
+   "k": "ui.lang.zh",
+   "v": "简体中文"
+  },
+  {
+   "k": "ui.lang.es",
+   "v": "Español"
+  },
+  {
+   "k": "ui.langLabel.en",
+   "v": "EN"
+  },
+  {
+   "k": "ui.langLabel.zh",
+   "v": "中文"
+  },
+  {
+   "k": "ui.langLabel.es",
+   "v": "ES"
+  },
+  {
+   "k": "ui.hints.crank",
+   "v": "Gira la manivela"
+  },
+  {
+   "k": "ui.hints.lean",
+   "v": "Acércate"
+  },
+  {
+   "k": "ui.hints.poke",
+   "v": "Toca o pellizca"
+  },
+  {
+   "k": "ui.hints.grab",
+   "v": "Agarra con el gatillo"
+  },
+  {
+   "k": "ui.hints.gaze",
+   "v": "Míralo"
+  },
+  {
+   "k": "ui.hints.voice",
+   "v": "Usa tu voz"
+  },
+  {
+   "k": "ui.hints.rub",
+   "v": "Frota con la yema del dedo"
+  },
+  {
+   "k": "ui.hints.move",
+   "v": "Muévete al ritmo"
+  },
+  {
+   "k": "ui.hints.none",
+   "v": "Solo mira"
+  },
+  {
+   "k": "ui.shapes.0",
+   "v": "Bolita"
+  },
+  {
+   "k": "ui.shapes.1",
+   "v": "Estrella"
+  },
+  {
+   "k": "ui.shapes.2",
+   "v": "Corazón"
+  },
+  {
+   "k": "ui.shapes.3",
+   "v": "Rizo"
+  },
+  {
+   "k": "ui.shapes.4",
+   "v": "Flor"
+  },
+  {
+   "k": "ui.shapes.5",
+   "v": "Rayo"
+  },
+  {
+   "k": "ui.body",
+   "v": "Color del cuerpo"
+  },
+  {
+   "k": "ui.tip",
+   "v": "Color de la punta"
+  },
+  {
+   "k": "ui.shape",
+   "v": "Forma de antena"
+  },
+  {
+   "k": "ui.egg6.0",
+   "v": "Calentar"
+  },
+  {
+   "k": "ui.egg6.1",
+   "v": "Lámpara"
+  },
+  {
+   "k": "ui.egg6.2",
+   "v": "Manta"
+  },
+  {
+   "k": "ui.egg6.3",
+   "v": "Cantar"
+  },
+  {
+   "k": "ui.egg6.4",
+   "v": "Escuchar"
+  },
+  {
+   "k": "ui.egg6.5",
+   "v": "Pulir"
+  },
+  {
+   "k": "ui.pet6.0",
+   "v": "Comer"
+  },
+  {
+   "k": "ui.pet6.1",
+   "v": "Dormir"
+  },
+  {
+   "k": "ui.pet6.2",
+   "v": "Limpiar"
+  },
+  {
+   "k": "ui.pet6.3",
+   "v": "Bailar"
+  },
+  {
+   "k": "ui.pet6.4",
+   "v": "Jugar"
+  },
+  {
+   "k": "ui.pet6.5",
+   "v": "Mimar"
+  },
+  {
+   "k": "ui.needs.0",
+   "v": "Hambre"
+  },
+  {
+   "k": "ui.needs.1",
+   "v": "Energía"
+  },
+  {
+   "k": "ui.needs.2",
+   "v": "Higiene"
+  },
+  {
+   "k": "ui.needs.3",
+   "v": "Diversión"
+  },
+  {
+   "k": "ui.needs.4",
+   "v": "Compañía"
+  },
+  {
+   "k": "ui.needs.5",
+   "v": "Orden"
+  },
+  {
+   "k": "ui.axes.0",
+   "v": "Chispa"
+  },
+  {
+   "k": "ui.axes.1",
+   "v": "Mimos"
+  },
+  {
+   "k": "ui.axes.2",
+   "v": "Asombro"
+  },
+  {
+   "k": "ui.axes.3",
+   "v": "Calma"
+  },
+  {
+   "k": "ui.axes.4",
+   "v": "Orden"
+  },
+  {
+   "k": "ui.quirk",
+   "v": "Manía"
+  },
+  {
+   "k": "ui.mood.content",
+   "v": "Contento"
+  },
+  {
+   "k": "ui.volume",
+   "v": "Volumen"
+  },
+  {
+   "k": "ui.sound",
+   "v": "Sonido"
+  },
+  {
+   "k": "ui.haptics",
+   "v": "Vibración"
+  },
+  {
+   "k": "ui.language",
+   "v": "Idioma"
+  },
+  {
+   "k": "ui.input",
+   "v": "Entrada"
+  },
+  {
+   "k": "ui.inputV",
+   "v": "Mandos y manos"
+  },
+  {
+   "k": "fmt.sec",
+   "v": "{a} / {b} s"
+  },
+  {
+   "k": "fmt.min",
+   "v": "{a} / {b} min"
+  },
+  {
+   "k": "fmt.taps",
+   "v": "{a} / {b} toques"
+  },
+  {
+   "k": "fmt.circles",
+   "v": "{a} / {b} círculos"
+  },
+  {
+   "k": "fmt.counters",
+   "v": "Nacidos {h} · En reposo {r} · Volvieron {w}"
+  },
+  {
+   "k": "fmt.eggCode",
+   "v": "Código {code}"
+  },
+  {
+   "k": "scr.C01.t",
+   "v": "¡Hola! Elige un idioma"
+  },
+  {
+   "k": "scr.C01.b",
+   "v": "Puedes cambiarlo luego en Ajustes."
+  },
+  {
+   "k": "scr.C01.p",
+   "v": "Continuar"
+  },
+  {
+   "k": "scr.C02.t",
+   "v": "Prepara el hábitat"
+  },
+  {
+   "k": "scr.C02.b",
+   "v": "Agarra el asa para mover y girar la base. Mejor al alcance de tu brazo."
+  },
+  {
+   "k": "scr.C02.p",
+   "v": "Colocar aquí"
+  },
+  {
+   "k": "scr.C03.t",
+   "v": "Tu pequeño visitante"
+  },
+  {
+   "k": "scr.C03.b",
+   "v": "Elige un aspecto. Quedará sellado en el huevo."
+  },
+  {
+   "k": "scr.C03.p",
+   "v": "Siguiente: nombre"
+  },
+  {
+   "k": "scr.C03.s",
+   "v": "Dado · al azar"
+  },
+  {
+   "k": "scr.C04.t",
+   "v": "Ponle un nombre"
+  },
+  {
+   "k": "scr.C04.b",
+   "v": "Toca cada rueda para cambiar una sílaba."
+  },
+  {
+   "k": "scr.C04.p",
+   "v": "Sellar huevo ▸"
+  },
+  {
+   "k": "scr.C04.s",
+   "v": "Atrás"
+  },
+  {
+   "k": "scr.C05.t",
+   "v": "¿Fijar el aspecto de {name}?"
+  },
+  {
+   "k": "scr.C05.b",
+   "v": "Lo conocerás cuando nazca del huevo."
+  },
+  {
+   "k": "scr.C05.p",
+   "v": "Sellar huevo"
+  },
+  {
+   "k": "scr.C05.s",
+   "v": "Atrás"
+  },
+  {
+   "k": "scr.C06.t",
+   "v": "Al nido…"
+  },
+  {
+   "k": "scr.C06.b",
+   "v": "El huevo se desliza al hábitat. Mantenlo caliente unos días."
+  },
+  {
+   "k": "scr.C07.t",
+   "v": "{name} · Día {day}"
+  },
+  {
+   "k": "scr.C07.b",
+   "v": "Calentito. Toca el orbe sobre el huevo para cuidarlo."
+  },
+  {
+   "k": "scr.C07.r.warmth",
+   "v": "Calor"
+  },
+  {
+   "k": "scr.C07.r.rituals",
+   "v": "Rituales de hoy"
+  },
+  {
+   "k": "scr.C07.r.lamp",
+   "v": "Lámpara"
+  },
+  {
+   "k": "scr.C07.v.rituals",
+   "v": "{n} de 9"
+  },
+  {
+   "k": "scr.C08.t",
+   "v": "¿Qué hacemos?"
+  },
+  {
+   "k": "scr.C08.b",
+   "v": "El calor ayuda a que nazca. Los rituales forman su carácter y cada uno cuenta 3 veces al día."
+  },
+  {
+   "k": "scr.C09.t",
+   "v": "Sostén el huevo en tus manos"
+  },
+  {
+   "k": "scr.C09.b",
+   "v": "¿Notas el latido? Sigue sosteniéndolo 30 segundos."
+  },
+  {
+   "k": "scr.C10.t",
+   "v": "Bien calentito"
+  },
+  {
+   "k": "scr.C10.b",
+   "v": "La lámpara queda encendida 10 h. Pon la manta sobre el huevo para reducir a la mitad la pérdida de calor durante 12 h."
+  },
+  {
+   "k": "scr.C10.p",
+   "v": "Vale"
+  },
+  {
+   "k": "scr.C11.t",
+   "v": "¿Le cantas al huevo?"
+  },
+  {
+   "k": "scr.C11.b",
+   "v": "Pangu solo mide el volumen en directo. No se graba ni se envía nada."
+  },
+  {
+   "k": "scr.C11.p",
+   "v": "Permitir micrófono"
+  },
+  {
+   "k": "scr.C11.s",
+   "v": "Usar la caja de música"
+  },
+  {
+   "k": "scr.C12.t",
+   "v": "Tararea o canta cerca"
+  },
+  {
+   "k": "scr.C12.b",
+   "v": "Quédate cerca del huevo. 10 segundos de canto lo completan."
+  },
+  {
+   "k": "scr.C13.t",
+   "v": "Da cuerda a la caja de música"
+  },
+  {
+   "k": "scr.C13.b",
+   "v": "Gira la manivela unas veces y déjala junto al nido. Le tararea una nana al huevo, sin micrófono."
+  },
+  {
+   "k": "scr.C14.t",
+   "v": "Acércate y escucha"
+  },
+  {
+   "k": "scr.C14.b",
+   "v": "Acerca la cabeza al huevo y quédate quieto. Oirás su latido y lo notarás en los mandos."
+  },
+  {
+   "k": "scr.C15.t",
+   "v": "Frota la cáscara hasta que brille"
+  },
+  {
+   "k": "scr.C15.b",
+   "v": "Pequeños círculos con la yema del dedo. Las motas brillan más a medida que la cáscara reluce."
+  },
+  {
+   "k": "scr.C16.t",
+   "v": "Suficiente <action> por hoy"
+  },
+  {
+   "k": "scr.C16.b",
+   "v": "Cada ritual cuenta 3 veces al día. Prueba otro o vuelve mañana."
+  },
+  {
+   "k": "scr.C16.p",
+   "v": "Vale"
+  },
+  {
+   "k": "scr.C17.t",
+   "v": "{name} está cogiendo frío"
+  },
+  {
+   "k": "scr.C17.b",
+   "v": "Vuelve a encender la lámpara o arrópalo con la manta para calentarlo."
+  },
+  {
+   "k": "scr.C17.p",
+   "v": "Encender la lámpara"
+  },
+  {
+   "k": "scr.C18.t",
+   "v": "El huevo se está apagando"
+  },
+  {
+   "k": "scr.C18.b",
+   "v": "Lleva un día frío. Caliéntalo en 24 h y se recuperará."
+  },
+  {
+   "k": "scr.C18.p",
+   "v": "Caliéntalo ya"
+  },
+  {
+   "k": "scr.C19.t",
+   "v": "El huevo se ha quedado en calma"
+  },
+  {
+   "k": "scr.C19.b",
+   "v": "Se durmió entre las estrellas. Puedes calentar otro cuando quieras."
+  },
+  {
+   "k": "scr.C19.p",
+   "v": "Empezar otro huevo"
+  },
+  {
+   "k": "scr.C20.t",
+   "v": "¡Algo se mueve!"
+  },
+  {
+   "k": "scr.C20.b",
+   "v": "Necesita tu ayuda para salir. Toca la cáscara para romperla."
+  },
+  {
+   "k": "scr.C21.t",
+   "v": "Naciendo…"
+  },
+  {
+   "k": "scr.C21.b",
+   "v": "La cáscara se abre y la tapa se levanta. Ya casi…"
+  },
+  {
+   "k": "scr.C22.t",
+   "v": "{name} es <nature>"
+  },
+  {
+   "k": "scr.C22.p",
+   "v": "Conocer a {name}"
+  },
+  {
+   "k": "scr.C24.t",
+   "v": "¿Qué necesita {name}?"
+  },
+  {
+   "k": "scr.C25.t",
+   "v": "Acerca un bocado a su boca"
+  },
+  {
+   "k": "scr.C25.b",
+   "v": "Le encanta <food> y le quita más el hambre."
+  },
+  {
+   "k": "scr.C26.t",
+   "v": "Shh… está durmiendo"
+  },
+  {
+   "k": "scr.C26.b",
+   "v": "Energía +2 por minuto, hasta 30 min. Tócalo para despertarlo."
+  },
+  {
+   "k": "scr.C27.t",
+   "v": "Frota y luego barre"
+  },
+  {
+   "k": "scr.C27.b",
+   "v": "Frótalo en la bañera para lavarlo más rápido y luego toca las migas de polvo de estrellas para quitarlas. Sube Higiene y Orden."
+  },
+  {
+   "k": "scr.C28.t",
+   "v": "¡Baila con él!"
+  },
+  {
+   "k": "scr.C28.b",
+   "v": "Mueve la cabeza y las manos al ritmo para ganar Compañía extra."
+  },
+  {
+   "k": "scr.C29.t",
+   "v": "Lanza la pelota"
+  },
+  {
+   "k": "scr.C29.b",
+   "v": "Persigue la pelota y te la devuelve. Cada vez: Diversión +8."
+  },
+  {
+   "k": "scr.C30.t",
+   "v": "Acaríciale la cabeza"
+  },
+  {
+   "k": "scr.C30.b",
+   "v": "O toca la punta de la antena. Compañía sube hasta 20 por minuto."
+  },
+  {
+   "k": "scr.C31.t",
+   "v": "{name} parece algo triste"
+  },
+  {
+   "k": "scr.C31.p",
+   "v": "Abrir orbe"
+  },
+  {
+   "k": "scr.C31.b",
+   "v": "Sus necesidades llevan un rato bajas. Un bocado y unos mimos le vendrían bien."
+  },
+  {
+   "k": "scr.C32.t",
+   "v": "{name} no deja de mirar al cielo"
+  },
+  {
+   "k": "scr.C32.b",
+   "v": "Echa de menos su hogar. Anímalo pronto o podría volver a casa."
+  },
+  {
+   "k": "scr.C32.p",
+   "v": "Abrir orbe"
+  },
+  {
+   "k": "scr.C33.t",
+   "v": "Volvió a las estrellas ✦"
+  },
+  {
+   "k": "scr.C33.p",
+   "v": "Empezar otro huevo"
+  },
+  {
+   "k": "scr.C33.b",
+   "v": "Gracias por cuidar de {name}."
+  },
+  {
+   "k": "scr.C34.t",
+   "v": "En pausa"
+  },
+  {
+   "k": "scr.C34.b",
+   "v": "Visor quitado o app en segundo plano. El tiempo se guarda y se pone al día cuando vuelvas."
+  },
+  {
+   "k": "scr.C35.t",
+   "v": "¡Hola de nuevo!"
+  },
+  {
+   "k": "scr.C35.p",
+   "v": "Saludar"
+  },
+  {
+   "k": "scr.C35.b",
+   "v": "Estuviste fuera {n} h. Esto es lo que cambió:"
+  },
+  {
+   "k": "scr.C35.bMin",
+   "v": "Estuviste fuera {n} min. Esto es lo que cambió:"
+  },
+  {
+   "k": "scr.C36.t",
+   "v": "Ajustes"
+  },
+  {
+   "k": "scr.C36.s",
+   "v": "Cerrar"
+  },
+  {
+   "k": "scr.C36.p",
+   "v": "Recentrar hábitat"
+  },
+  {
+   "k": "scr.C37.t",
+   "v": "Hábitat movido hacia ti"
+  },
+  {
+   "k": "scr.C37.b",
+   "v": "Está otra vez a 75 cm delante de ti. Agarra el asa para ajustarlo."
+  },
+  {
+   "k": "scr.C37.p",
+   "v": "Hecho"
+  },
+  {
+   "k": "toast.orb",
+   "v": "Orbe de cuidado"
+  },
+  {
+   "k": "debug.recenter",
+   "v": "Recentrar (depuración)"
+  },
+  {
+   "k": "hint.handle",
+   "v": "Agarra aquí para mover el hábitat"
+  }
+ ]
+}

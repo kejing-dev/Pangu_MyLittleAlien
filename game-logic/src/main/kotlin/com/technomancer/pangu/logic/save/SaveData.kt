@@ -1,6 +1,7 @@
 package com.technomancer.pangu.logic.save
 
 import com.technomancer.pangu.logic.flow.FlowState
+import com.technomancer.pangu.logic.flow.ScreenId
 import kotlinx.serialization.Serializable
 
 /**
@@ -11,6 +12,10 @@ import kotlinx.serialization.Serializable
 data class SaveData(
     val version: Int = SCHEMA_VERSION,
     val flow: FlowState = FlowState.Onboarding,
+    val screen: ScreenId = ScreenId.C02,
+    /** Language code (en, zh, es); empty until the player has picked one. */
+    val language: String = "",
+    val settings: SettingsData = SettingsData(),
     val lastSimUtcMs: Long = 0L,
     val lastSeenUtcMs: Long = 0L,
     val padPose: PadPoseData = PadPoseData(),
@@ -19,6 +24,14 @@ data class SaveData(
         const val SCHEMA_VERSION = 4
     }
 }
+
+/** Player settings. [volume] is 0..100. */
+@Serializable
+data class SettingsData(
+    val volume: Int = 70,
+    val soundOn: Boolean = true,
+    val hapticsOn: Boolean = true,
+)
 
 /** Pad pose in Stage coordinates. [pos] is x, y, z of the pad top centre. */
 @Serializable

@@ -17,6 +17,7 @@ import com.technomancer.pangu.logic.art.MeshData
  */
 class MeshFactory {
     private val materials = HashMap<Int, UnlitMaterial>()
+    private val meshCache = HashMap<String, MeshResource>()
 
     fun unlit(color: Int): UnlitMaterial =
         materials.getOrPut(color) {
@@ -26,7 +27,11 @@ class MeshFactory {
             }
         }
 
-    fun mesh(data: MeshData, name: String): MeshResource {
+    /** Uploads [data] once per [name]; later calls return the cached resource. */
+    @Synchronized
+    fun mesh(data: MeshData, name: String): MeshResource = meshCache.getOrPut(name) { upload(data, name) }
+
+    private fun upload(data: MeshData, name: String): MeshResource {
         val n = data.vertexCount
         val positions = ArrayList<Vector3>(n)
         val normals = ArrayList<Vector3>(n)

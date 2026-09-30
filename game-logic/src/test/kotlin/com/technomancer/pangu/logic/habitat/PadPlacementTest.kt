@@ -38,6 +38,20 @@ class PadPlacementTest {
     }
 
     @Test
+    fun dragKeepsPadLevelAndFacesHead() {
+        val start = PadPose(Vec3(0f, 0.9f, -0.75f), 0f)
+        val head = Vec3(0f, 1.5f, 0f)
+        val moved = placement.drag(start, Vec3(0.4f, 0.25f, 0.1f), head)
+        assertEquals(0.4f, moved.position.x, eps)
+        assertEquals(0.9f, moved.position.y, eps)
+        assertEquals(-0.65f, moved.position.z, eps)
+        val front = moved.rotation.rotate(Vec3(0f, 0f, 1f))
+        val toHead = (head - moved.position).flattened().normalized()
+        assertEquals(1f, front dot toHead, eps)
+        assertEquals(0f, front.y, 1e-6f)
+    }
+
+    @Test
     fun shouldRestoreFalseBeyond2_5m() {
         val saved = PadPose(Vec3(0f, 1f, -0.75f), 0f)
         assertTrue(placement.shouldRestore(saved, Vec3(0f, 1.6f, 0f)))

@@ -1,0 +1,648 @@
+{
+ "entries": [
+  {
+   "k": "ui.lang.en",
+   "v": "English"
+  },
+  {
+   "k": "ui.lang.zh",
+   "v": "简体中文"
+  },
+  {
+   "k": "ui.lang.es",
+   "v": "Español"
+  },
+  {
+   "k": "ui.langLabel.en",
+   "v": "EN"
+  },
+  {
+   "k": "ui.langLabel.zh",
+   "v": "中文"
+  },
+  {
+   "k": "ui.langLabel.es",
+   "v": "ES"
+  },
+  {
+   "k": "ui.hints.crank",
+   "v": "Wind the crank"
+  },
+  {
+   "k": "ui.hints.lean",
+   "v": "Lean in close"
+  },
+  {
+   "k": "ui.hints.poke",
+   "v": "Poke or pinch"
+  },
+  {
+   "k": "ui.hints.grab",
+   "v": "Grip to grab"
+  },
+  {
+   "k": "ui.hints.gaze",
+   "v": "Look at it"
+  },
+  {
+   "k": "ui.hints.voice",
+   "v": "Use your voice"
+  },
+  {
+   "k": "ui.hints.rub",
+   "v": "Rub with a fingertip"
+  },
+  {
+   "k": "ui.hints.move",
+   "v": "Move to the beat"
+  },
+  {
+   "k": "ui.hints.none",
+   "v": "Just watch"
+  },
+  {
+   "k": "ui.shapes.0",
+   "v": "Bobble"
+  },
+  {
+   "k": "ui.shapes.1",
+   "v": "Star"
+  },
+  {
+   "k": "ui.shapes.2",
+   "v": "Heart"
+  },
+  {
+   "k": "ui.shapes.3",
+   "v": "Curl"
+  },
+  {
+   "k": "ui.shapes.4",
+   "v": "Flower"
+  },
+  {
+   "k": "ui.shapes.5",
+   "v": "Zap"
+  },
+  {
+   "k": "ui.body",
+   "v": "Body colour"
+  },
+  {
+   "k": "ui.tip",
+   "v": "Antenna tip colour"
+  },
+  {
+   "k": "ui.shape",
+   "v": "Antenna shape"
+  },
+  {
+   "k": "ui.egg6.0",
+   "v": "Warm"
+  },
+  {
+   "k": "ui.egg6.1",
+   "v": "Lamp"
+  },
+  {
+   "k": "ui.egg6.2",
+   "v": "Blanket"
+  },
+  {
+   "k": "ui.egg6.3",
+   "v": "Sing"
+  },
+  {
+   "k": "ui.egg6.4",
+   "v": "Listen"
+  },
+  {
+   "k": "ui.egg6.5",
+   "v": "Polish"
+  },
+  {
+   "k": "ui.pet6.0",
+   "v": "Eat"
+  },
+  {
+   "k": "ui.pet6.1",
+   "v": "Sleep"
+  },
+  {
+   "k": "ui.pet6.2",
+   "v": "Clean"
+  },
+  {
+   "k": "ui.pet6.3",
+   "v": "Dance"
+  },
+  {
+   "k": "ui.pet6.4",
+   "v": "Play"
+  },
+  {
+   "k": "ui.pet6.5",
+   "v": "Cuddle"
+  },
+  {
+   "k": "ui.needs.0",
+   "v": "Hunger"
+  },
+  {
+   "k": "ui.needs.1",
+   "v": "Energy"
+  },
+  {
+   "k": "ui.needs.2",
+   "v": "Hygiene"
+  },
+  {
+   "k": "ui.needs.3",
+   "v": "Fun"
+  },
+  {
+   "k": "ui.needs.4",
+   "v": "Social"
+  },
+  {
+   "k": "ui.needs.5",
+   "v": "Tidy"
+  },
+  {
+   "k": "ui.axes.0",
+   "v": "Zest"
+  },
+  {
+   "k": "ui.axes.1",
+   "v": "Cuddle"
+  },
+  {
+   "k": "ui.axes.2",
+   "v": "Wonder"
+  },
+  {
+   "k": "ui.axes.3",
+   "v": "Calm"
+  },
+  {
+   "k": "ui.axes.4",
+   "v": "Neat"
+  },
+  {
+   "k": "ui.quirk",
+   "v": "Quirk"
+  },
+  {
+   "k": "ui.mood.content",
+   "v": "Content"
+  },
+  {
+   "k": "ui.volume",
+   "v": "Volume"
+  },
+  {
+   "k": "ui.sound",
+   "v": "Sound"
+  },
+  {
+   "k": "ui.haptics",
+   "v": "Haptics"
+  },
+  {
+   "k": "ui.language",
+   "v": "Language"
+  },
+  {
+   "k": "ui.input",
+   "v": "Input"
+  },
+  {
+   "k": "ui.inputV",
+   "v": "Controllers & hands"
+  },
+  {
+   "k": "fmt.sec",
+   "v": "{a} / {b} s"
+  },
+  {
+   "k": "fmt.min",
+   "v": "{a} / {b} min"
+  },
+  {
+   "k": "fmt.taps",
+   "v": "{a} / {b} taps"
+  },
+  {
+   "k": "fmt.circles",
+   "v": "{a} / {b} circles"
+  },
+  {
+   "k": "fmt.counters",
+   "v": "Hatched {h} · Resting {r} · Went home {w}"
+  },
+  {
+   "k": "fmt.eggCode",
+   "v": "Egg code {code}"
+  },
+  {
+   "k": "scr.C01.t",
+   "v": "Hello! Pick a language"
+  },
+  {
+   "k": "scr.C01.b",
+   "v": "You can change this later in Settings."
+  },
+  {
+   "k": "scr.C01.p",
+   "v": "Continue"
+  },
+  {
+   "k": "scr.C02.t",
+   "v": "Set up the habitat"
+  },
+  {
+   "k": "scr.C02.b",
+   "v": "Grab the handle to move and turn the pad. Within arm's reach works best."
+  },
+  {
+   "k": "scr.C02.p",
+   "v": "Place here"
+  },
+  {
+   "k": "scr.C03.t",
+   "v": "Your little visitor"
+  },
+  {
+   "k": "scr.C03.b",
+   "v": "Pick a look. It's sealed into the egg."
+  },
+  {
+   "k": "scr.C03.p",
+   "v": "Next: name"
+  },
+  {
+   "k": "scr.C03.s",
+   "v": "Dice · randomize"
+  },
+  {
+   "k": "scr.C04.t",
+   "v": "Give them a name"
+  },
+  {
+   "k": "scr.C04.b",
+   "v": "Poke each wheel to change a syllable."
+  },
+  {
+   "k": "scr.C04.p",
+   "v": "Set egg ▸"
+  },
+  {
+   "k": "scr.C04.s",
+   "v": "Back"
+  },
+  {
+   "k": "scr.C05.t",
+   "v": "Lock in {name}'s look?"
+  },
+  {
+   "k": "scr.C05.b",
+   "v": "You'll meet them when the egg hatches."
+  },
+  {
+   "k": "scr.C05.p",
+   "v": "Set egg"
+  },
+  {
+   "k": "scr.C05.s",
+   "v": "Back"
+  },
+  {
+   "k": "scr.C06.t",
+   "v": "Into the nest…"
+  },
+  {
+   "k": "scr.C06.b",
+   "v": "The egg glides to the habitat. Keep it warm for a few days."
+  },
+  {
+   "k": "scr.C07.t",
+   "v": "{name} · Day {day}"
+  },
+  {
+   "k": "scr.C07.b",
+   "v": "Cozy and warm. Poke the orb above the egg to care for it."
+  },
+  {
+   "k": "scr.C07.r.warmth",
+   "v": "Warmth"
+  },
+  {
+   "k": "scr.C07.r.rituals",
+   "v": "Rituals today"
+  },
+  {
+   "k": "scr.C07.r.lamp",
+   "v": "Heat lamp"
+  },
+  {
+   "k": "scr.C07.v.rituals",
+   "v": "{n} of 9"
+  },
+  {
+   "k": "scr.C08.t",
+   "v": "What should we do?"
+  },
+  {
+   "k": "scr.C08.b",
+   "v": "Warmth helps it hatch. Rituals shape its personality, and each one counts 3 times a day."
+  },
+  {
+   "k": "scr.C09.t",
+   "v": "Hold the egg in your hands"
+  },
+  {
+   "k": "scr.C09.b",
+   "v": "Feel the heartbeat? Keep holding for 30 seconds."
+  },
+  {
+   "k": "scr.C10.t",
+   "v": "Nice and toasty"
+  },
+  {
+   "k": "scr.C10.b",
+   "v": "The lamp stays on for 10 h. Drop the blanket on the egg to halve heat loss for 12 h."
+  },
+  {
+   "k": "scr.C10.p",
+   "v": "OK"
+  },
+  {
+   "k": "scr.C11.t",
+   "v": "Sing to your egg?"
+  },
+  {
+   "k": "scr.C11.b",
+   "v": "Pangu only listens to how loud you are, live. Nothing is recorded or sent."
+  },
+  {
+   "k": "scr.C11.p",
+   "v": "Allow microphone"
+  },
+  {
+   "k": "scr.C11.s",
+   "v": "Use the music box instead"
+  },
+  {
+   "k": "scr.C12.t",
+   "v": "Hum or sing nearby"
+  },
+  {
+   "k": "scr.C12.b",
+   "v": "Stay close to the egg. 10 seconds of song completes it."
+  },
+  {
+   "k": "scr.C13.t",
+   "v": "Wind up the music box"
+  },
+  {
+   "k": "scr.C13.b",
+   "v": "Turn the little crank a few times and set it by the nest. It hums a lullaby to the egg, so no microphone is needed."
+  },
+  {
+   "k": "scr.C14.t",
+   "v": "Lean in and listen"
+  },
+  {
+   "k": "scr.C14.b",
+   "v": "Bring your head close to the egg and hold still. You'll hear its heartbeat and feel it through the controllers."
+  },
+  {
+   "k": "scr.C15.t",
+   "v": "Rub the shell until it shines"
+  },
+  {
+   "k": "scr.C15.b",
+   "v": "Small circles with a fingertip. The speckles brighten as the shell gets shinier."
+  },
+  {
+   "k": "scr.C16.t",
+   "v": "That's enough <action> today"
+  },
+  {
+   "k": "scr.C16.b",
+   "v": "Each ritual counts 3 times a day. Try another one, or come back tomorrow."
+  },
+  {
+   "k": "scr.C16.p",
+   "v": "OK"
+  },
+  {
+   "k": "scr.C17.t",
+   "v": "{name} is getting chilly"
+  },
+  {
+   "k": "scr.C17.b",
+   "v": "Relight the lamp or tuck in the blanket to warm it back up."
+  },
+  {
+   "k": "scr.C17.p",
+   "v": "Light the lamp"
+  },
+  {
+   "k": "scr.C18.t",
+   "v": "The egg is fading"
+  },
+  {
+   "k": "scr.C18.b",
+   "v": "It's been cold for a day. Warm it within 24 h and it will recover."
+  },
+  {
+   "k": "scr.C18.p",
+   "v": "Warm it now"
+  },
+  {
+   "k": "scr.C19.t",
+   "v": "The egg has gone quiet"
+  },
+  {
+   "k": "scr.C19.b",
+   "v": "It drifted off to sleep among the stars. You can warm a new one whenever you're ready."
+  },
+  {
+   "k": "scr.C19.p",
+   "v": "Start a new egg"
+  },
+  {
+   "k": "scr.C20.t",
+   "v": "Something's moving!"
+  },
+  {
+   "k": "scr.C20.b",
+   "v": "It needs your help to break out. Tap the shell to crack it open."
+  },
+  {
+   "k": "scr.C21.t",
+   "v": "Hatching…"
+  },
+  {
+   "k": "scr.C21.b",
+   "v": "The shell splits and the top lifts off. Almost there…"
+  },
+  {
+   "k": "scr.C22.t",
+   "v": "{name} is <nature>"
+  },
+  {
+   "k": "scr.C22.p",
+   "v": "Meet {name}"
+  },
+  {
+   "k": "scr.C24.t",
+   "v": "What does {name} need?"
+  },
+  {
+   "k": "scr.C25.t",
+   "v": "Hold a snack to its mouth"
+  },
+  {
+   "k": "scr.C25.b",
+   "v": "It loves <food> and gets extra Hunger from them."
+  },
+  {
+   "k": "scr.C26.t",
+   "v": "Shh… napping"
+  },
+  {
+   "k": "scr.C26.b",
+   "v": "Energy +2 a minute, up to 30 min. Poke it to wake it up."
+  },
+  {
+   "k": "scr.C27.t",
+   "v": "Scrub, then sweep"
+  },
+  {
+   "k": "scr.C27.b",
+   "v": "Rub it in the tub to scrub faster, then poke the stardust crumbs away. Raises Hygiene and Tidy."
+  },
+  {
+   "k": "scr.C28.t",
+   "v": "Dance along!"
+  },
+  {
+   "k": "scr.C28.b",
+   "v": "Move your head and hands to the beat for bonus Social."
+  },
+  {
+   "k": "scr.C29.t",
+   "v": "Throw the ball"
+  },
+  {
+   "k": "scr.C29.b",
+   "v": "It chases the ball and pushes it back to you. Each fetch: Fun +8."
+  },
+  {
+   "k": "scr.C30.t",
+   "v": "Stroke the top of its head"
+  },
+  {
+   "k": "scr.C30.b",
+   "v": "Or boop the antenna tip. Social rises by up to 20 a minute."
+  },
+  {
+   "k": "scr.C31.t",
+   "v": "{name} seems a little down"
+  },
+  {
+   "k": "scr.C31.p",
+   "v": "Open care orb"
+  },
+  {
+   "k": "scr.C31.b",
+   "v": "Its needs have been low for a while. A snack and a cuddle would help."
+  },
+  {
+   "k": "scr.C32.t",
+   "v": "{name} keeps looking at the sky"
+  },
+  {
+   "k": "scr.C32.b",
+   "v": "It's feeling homesick. Cheer it up soon, or it may head home."
+  },
+  {
+   "k": "scr.C32.p",
+   "v": "Open care orb"
+  },
+  {
+   "k": "scr.C33.t",
+   "v": "Went home to the stars ✦"
+  },
+  {
+   "k": "scr.C33.p",
+   "v": "Start a new egg"
+  },
+  {
+   "k": "scr.C33.b",
+   "v": "Thank you for caring for {name}."
+  },
+  {
+   "k": "scr.C34.t",
+   "v": "Paused"
+  },
+  {
+   "k": "scr.C34.b",
+   "v": "Headset off or app in the background. Time is saved and catches up when you're back."
+  },
+  {
+   "k": "scr.C35.t",
+   "v": "Welcome back!"
+  },
+  {
+   "k": "scr.C35.p",
+   "v": "Say hi"
+  },
+  {
+   "k": "scr.C35.b",
+   "v": "You were away for {n} h. Here's what changed:"
+  },
+  {
+   "k": "scr.C35.bMin",
+   "v": "You were away for {n} min. Here's what changed:"
+  },
+  {
+   "k": "scr.C36.t",
+   "v": "Settings"
+  },
+  {
+   "k": "scr.C36.s",
+   "v": "Close"
+  },
+  {
+   "k": "scr.C36.p",
+   "v": "Recenter habitat"
+  },
+  {
+   "k": "scr.C37.t",
+   "v": "Habitat moved to you"
+  },
+  {
+   "k": "scr.C37.b",
+   "v": "It's back 75 cm in front of you. Grab the handle to fine-tune."
+  },
+  {
+   "k": "scr.C37.p",
+   "v": "Done"
+  },
+  {
+   "k": "toast.orb",
+   "v": "Care orb"
+  },
+  {
+   "k": "debug.recenter",
+   "v": "Recenter (debug)"
+  },
+  {
+   "k": "hint.handle",
+   "v": "Grab here to move the habitat"
+  }
+ ]
+}
