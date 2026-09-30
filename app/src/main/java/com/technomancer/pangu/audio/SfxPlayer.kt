@@ -36,11 +36,40 @@ class SfxPlayer {
     /** Voice pitch of the current pet; picks the nearest pre-rendered chirp. */
     var voicePitch = 1f
 
+    private var loop: Sfx? = null
+    private var loopController: AudioPlayerController? = null
+
+    /** Keeps [sfx] looping from the pet (dance music), or stops the loop when null. */
+    fun setLoop(sfx: Sfx?) {
+        if (sfx == loop) return
+        runCatching { loopController?.stop() }
+        loopController = null
+        loop = sfx
+        if (sfx == null || !soundOn) return
+        val emitter = petEmitter ?: return
+        val id = AudioCatalog.musicId(sfx)
+        val resource = resources.getOrPut(id) { load(id) } ?: return
+        try {
+            loopController = controllers.getOrPut(emitter to id) { emitter.prepareAudio(resource) }.apply {
+                setVolume(volume)
+                setLoop(true)
+                stop()
+                play()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not loop $id", e)
+        }
+    }
+
     fun play(sfx: Sfx) {
-        if (!soundOn) return
-        val isChirp = AudioCatalog.isChirp(sfx)
-        val emitter = (if (isChirp) petEmitter else uiEmitter) ?: return
-        val id = if (isChirp) AudioCatalog.chirpId(sfx, AudioCatalog.nearestStep(voicePitch)) else AudioCatalog.uiId(sfx)
+        if (!soundOn || AudioCatalog.isLoop(sfx)) return
+        val fromPet = AudioCatalog.isChirp(sfx) || AudioCatalog.isMusic(sfx)
+        val emitter = (if (fromPet) petEmitter else uiEmitter) ?: return
+        val id = when {
+            AudioCatalog.isChirp(sfx) -> AudioCatalog.chirpId(sfx, AudioCatalog.nearestStep(voicePitch))
+            AudioCatalog.isMusic(sfx) -> AudioCatalog.musicId(sfx)
+            else -> AudioCatalog.uiId(sfx)
+        }
         val resource = resources.getOrPut(id) { load(id) } ?: return
         try {
             val c = controllers.getOrPut(emitter to id) { emitter.prepareAudio(resource) }
@@ -53,6 +82,8 @@ class SfxPlayer {
     }
 
     fun clear() {
+        loop = null
+        loopController = null
         controllers.values.forEach { runCatching { it.close() } }
         controllers.clear()
         petEmitter = null

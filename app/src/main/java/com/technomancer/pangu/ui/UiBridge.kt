@@ -21,6 +21,14 @@ data class PetUi(
     val lowest: Need,
     val suggested: List<PetAction>,
     val napMinutes: Int,
+    /** Seconds into the current bath or dance. */
+    val timedSec: Int = 0,
+    /** Hatched, resting (dormant) and went-home counters. */
+    val counters: Triple<Int, Int, Int> = Triple(0, 0, 0),
+    /** Welcome back rows: need, before, after; plus new crumbs and minutes away. */
+    val awayDrops: List<Triple<Need, Int, Int>> = emptyList(),
+    val awayCrumbs: Int = 0,
+    val awayMinutes: Long = 0,
 )
 
 /**
@@ -64,6 +72,11 @@ class UiBridge {
                 lowest = Suggestions.lowestNeed(pet.needs, pet.config),
                 suggested = Suggestions.forPet(pet.needs, pet.config),
                 napMinutes = pet.actions.napMinutes(logic.nowMs),
+                timedSec = pet.actions.timedSec.toInt(),
+                counters = Triple(logic.hatchedCount, logic.dormantCount, logic.wentHomeCount),
+                awayDrops = logic.welcome?.drops?.map { Triple(it.first, it.second.first, it.second.second) }.orEmpty(),
+                awayCrumbs = logic.welcome?.newCrumbs ?: 0,
+                awayMinutes = logic.welcome?.minutesAway ?: 0,
             )
         }
     }

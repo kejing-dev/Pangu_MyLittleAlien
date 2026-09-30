@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pico.spatial.core.ecs.AnchorEntity
 import com.pico.spatial.core.ecs.Entity
+import com.pico.spatial.core.ecs.GroundShadowComponent
 import com.pico.spatial.core.ecs.TransformComponent
 import com.pico.spatial.core.ecs.anchor.AnchorTarget
 import com.pico.spatial.core.math.Vector3
@@ -39,6 +40,7 @@ import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.ecs.entities.AlienFactory
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.PropFactory
+import com.technomancer.pangu.ecs.entities.ToonMaterial
 import com.technomancer.pangu.ecs.systems.SceneEntities
 import com.technomancer.pangu.ecs.entities.MeshFactory
 import com.technomancer.pangu.ecs.systems.InputSystem
@@ -131,11 +133,11 @@ fun PanguStage() {
                         drag.target = value.targetEntity.targetId()
                         events.push(InteractionType.DragStart, drag.target)
                     },
-                    onDragEnd = { events.push(InteractionType.DragEnd, drag.target) },
-                    onDragCancel = { events.push(InteractionType.DragEnd, drag.target) },
+                    onDragEnd = { events.push(InteractionType.DragEnd, drag.target, timeNanos = System.nanoTime()) },
+                    onDragCancel = { events.push(InteractionType.DragEnd, drag.target, timeNanos = System.nanoTime()) },
                 ) { value ->
                     val root = drag.root ?: return@detectSpatialDragGesture
-                    events.push(InteractionType.DragMove, drag.target, stageDelta(value.dragAmount, root, density, converter))
+                    events.push(InteractionType.DragMove, drag.target, stageDelta(value.dragAmount, root, density, converter), System.nanoTime())
                 }
             },
         attachments = {
@@ -217,6 +219,16 @@ fun PanguStage() {
         val rig = if (alienLoaded) alienFactory.create().also { habitat.addChild(it.root) } else null
         val tray = propFactory.createTray().also { habitat.addChild(it) }
         val foods = List(PetWorld.FOOD_COUNT) { i -> propFactory.createFood(i).also { habitat.addChild(it) } }
+        val (tub, bubbles) = propFactory.createTub().also { habitat.addChild(it.first) }
+        val ball = propFactory.createBall().also { habitat.addChild(it) }
+        val crumbs = List(MAX_CRUMBS) { i -> propFactory.createCrumb(i).also { habitat.addChild(it) } }
+        val beam = propFactory.createBeam().also { habitat.addChild(it) }
+        val skyRing = propFactory.createSkyRing().also { habitat.addChild(it) }
+
+        // Soft contact shadows: the pad receives, the pet casts.
+        habitat.findEntity("PH_PadTop")?.components?.set(GroundShadowComponent(false, true))
+        rig?.root?.components?.set(GroundShadowComponent(true, false))
+        if (rig != null) ToonMaterial.tryApply(rig.root)
         sfx.petEmitter = rig?.root
         sfx.uiEmitter = infoPanel ?: habitat
 
@@ -235,7 +247,7 @@ fun PanguStage() {
         scene.presentation = PresentationSystem(
             root,
             habitat,
-            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods),
+            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing),
             uiConfig,
             placement.habitatScale,
         )
@@ -276,6 +288,7 @@ private const val ROOT = "PanguRoot"
 private const val PANEL_INFO = "panel_info"
 private const val PANEL_HANDLE = "panel_handle"
 private const val PANEL_PIE = "panel_pie"
+private const val MAX_CRUMBS = 5
 private const val PANEL_TOAST = "panel_toast"
 private const val PANEL_PAUSE = "panel_pause"
 private const val HEAD_WAIT_MS = 2000L

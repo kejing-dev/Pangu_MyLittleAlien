@@ -27,8 +27,8 @@ import kotlin.math.sin
 /** Glyph per action, in pie order. */
 private val PET_GLYPHS = listOf("●", "☾", "✧", "♫", "◉", "♡")
 
-/** Actions that exist so far; the others show a "Coming soon" toast. */
-private val AVAILABLE = setOf(PetAction.Eat, PetAction.Sleep, PetAction.Cuddle)
+/** Actions that can be chosen; anything else is drawn faded. */
+private val AVAILABLE = PetAction.entries.toSet()
 
 /** Organic blob outline taken from the mockup's uneven corner radii. */
 private val BlobShape = GenericShape { size, _ ->

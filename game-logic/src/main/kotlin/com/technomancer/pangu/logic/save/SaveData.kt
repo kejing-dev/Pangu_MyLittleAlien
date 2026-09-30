@@ -20,6 +20,9 @@ data class SaveData(
     val lastSeenUtcMs: Long = 0L,
     val padPose: PadPoseData = PadPoseData(),
     val pet: PetData = PetData(),
+    val hatchedCount: Int = 0,
+    val dormantCount: Int = 0,
+    val wentHomeCount: Int = 0,
 ) {
     companion object {
         const val SCHEMA_VERSION = 4
@@ -48,6 +51,8 @@ data class PetData(
     val hatchUtcMs: Long = 0L,
     val needs: List<Float> = emptyList(),
     val crumbs: Int = 0,
+    /** Crumb positions on the pad as x, z pairs. */
+    val crumbPositions: List<Float> = emptyList(),
     val napEndUtcMs: Long = 0L,
     val distressHours: Float = 0f,
 )

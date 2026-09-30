@@ -7,6 +7,9 @@ import androidx.lifecycle.LifecycleOwner
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.habitat.PadPose
 import com.technomancer.pangu.logic.math.Vec3
+import com.technomancer.pangu.logic.pet.AwaySummary
+import com.technomancer.pangu.logic.pet.MoodCalculator
+import com.technomancer.pangu.logic.sim.CatchUp
 import com.technomancer.pangu.logic.save.ISaveStore
 import com.technomancer.pangu.logic.save.LoadResult
 import com.technomancer.pangu.logic.save.PadPoseData
@@ -43,6 +46,7 @@ class SessionController(
     private val clock: IClock,
     private val ui: UiBridge,
     initial: SaveData,
+    private val catchUp: CatchUp? = null,
 ) : LifecycleEventObserver {
 
     private val ioThread = Executors.newSingleThreadExecutor { r -> Thread(r, "PanguSave") }
@@ -66,12 +70,30 @@ class SessionController(
                 persist()
             }
             Lifecycle.Event.ON_RESUME -> {
+                catchUpPause()
                 logic.setPaused(false)
                 ui.publishIfChanged(logic)
                 Log.i(TAG, "resumed tick=${logic.tickCount}")
             }
             else -> Unit
         }
+    }
+
+    /** Replays the time the app spent in the background and shows Welcome back after a long absence. */
+    private fun catchUpPause() {
+        val cu = catchUp ?: return
+        if (!logic.isPetFlow || logic.pet.hatchMs == 0L) return
+        val now = clock.nowUtcMillis()
+        val from = logic.nowMs
+        if (now - from < 60_000L) return
+        val pet = logic.pet
+        val before = pet.needs.values.copyOf()
+        val crumbsBefore = pet.needs.crumbs
+        cu.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config))
+        pet.syncStage()
+        logic.nowMs = now
+        AwaySummary.of(before, pet.needs.values, crumbsBefore, pet.needs.crumbs, now - from, pet.config.welcomeBackMinMinutes)
+            ?.let { logic.showWelcomeBack(it) }
     }
 
     /** Copies the logic's state into the save, serializes it here and writes it on a background thread. */
@@ -89,7 +111,9 @@ class SessionController(
                 hatchUtcMs = pet.hatchMs,
                 needs = pet.needs.values.toList(),
                 crumbs = pet.needs.crumbs,
+                crumbPositions = pet.crumbs.positions.flatMap { listOf(it.x, it.z) },
                 napEndUtcMs = pet.actions.napEndMs,
+                distressHours = pet.distress.hours,
             )
         } else {
             save.pet
@@ -98,6 +122,9 @@ class SessionController(
             screen = logic.screens.persistentScreen,
             padPose = padData,
             pet = petData,
+            hatchedCount = logic.hatchedCount,
+            dormantCount = logic.dormantCount,
+            wentHomeCount = logic.wentHomeCount,
             lastSeenUtcMs = now,
             lastSimUtcMs = logic.nowMs,
         )

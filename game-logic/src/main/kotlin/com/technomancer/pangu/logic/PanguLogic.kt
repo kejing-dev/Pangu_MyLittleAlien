@@ -16,6 +16,8 @@ import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.pet.NeedsSim
+import com.technomancer.pangu.logic.pet.AwaySummary
+import com.technomancer.pangu.logic.pet.Distress
 import com.technomancer.pangu.logic.pet.PetAction
 import com.technomancer.pangu.logic.pet.PetActivity
 import com.technomancer.pangu.logic.pet.PetEvents
@@ -85,13 +87,58 @@ class PanguLogic(
 
     val isPetFlow: Boolean
         get() = when (screens.persistentScreen) {
-            ScreenId.C23, ScreenId.C24, ScreenId.C25, ScreenId.C26, ScreenId.C30 -> true
+            ScreenId.C23, ScreenId.C24, ScreenId.C25, ScreenId.C26, ScreenId.C27, ScreenId.C28, ScreenId.C29,
+            ScreenId.C30, ScreenId.C31, ScreenId.C32, ScreenId.C33, ScreenId.C35 -> true
             else -> false
+        }
+
+    /** Counters shown on the Dormant and Went home cards. */
+    var hatchedCount = 0
+    var dormantCount = 0
+    var wentHomeCount = 0
+
+    /** What changed while away, shown on C35. */
+    var welcome: AwaySummary? = null
+        private set
+
+    /** The dance loop that should be playing from the pet, or null. */
+    val danceMusic: Sfx?
+        get() = if (pet.actions.activity == PetActivity.Dancing) {
+            if (pet.body.danceSpins) Sfx.DanceSpin else Sfx.DanceWiggle
+        } else {
+            null
         }
 
     fun setPaused(paused: Boolean) {
         isPaused = paused
-        if (paused) screens.pause() else screens.resume()
+        if (paused) {
+            // A bath or dance past halfway finishes with its full gain; otherwise it is cancelled.
+            val activity = pet.actions.activity
+            if (activity == PetActivity.Cleaning || activity == PetActivity.Dancing) {
+                pet.actions.finishOrCancelOnPause(pet.needs)
+                pet.endActivity()
+                screens.show(ScreenId.C23)
+            }
+            screens.pause()
+        } else {
+            screens.resume()
+        }
+    }
+
+    /** Re-shows the Mopey or Homesick card for a pet loaded in that state (they are not blocking, so they come back on relaunch). */
+    fun announceDistress() {
+        if (!isPetFlow) return
+        when (pet.stage()) {
+            Distress.Mopey -> screens.show(ScreenId.C31)
+            Distress.Homesick -> screens.show(ScreenId.C32)
+            else -> Unit
+        }
+    }
+
+    /** Shows the Welcome back screen with what changed while the player was away. */
+    fun showWelcomeBack(summary: AwaySummary) {
+        welcome = summary
+        screens.show(ScreenId.C35)
     }
 
     fun placePad(pose: PadPose) {
@@ -120,8 +167,18 @@ class PanguLogic(
         if (pet.hatchMs == 0L) pet.hatchMs = nowMs
         val head = if (input.headValid) toPadLocal(input.headPosition) else null
         pokeBuffer.clear()
-        for (p in input.pokes) if (p.valid) pokeBuffer += toPadLocal(p.position)
-        pet.update(dt, nowMs, needsSim.isNight(clock.localHour(nowMs)), head, pokeBuffer)
+        motionBuffer.clear()
+        motionBuffer += if (input.headValid) input.headPosition else null
+        for (p in input.pokes) {
+            if (p.valid) pokeBuffer += toPadLocal(p.position)
+            motionBuffer += if (p.valid) p.position else null
+        }
+        pet.update(dt, nowMs, needsSim.isNight(clock.localHour(nowMs)), head, pokeBuffer, motionBuffer)
+        if (pet.stage() == Distress.WentHome && pet.body.departed && screens.current != ScreenId.C33) {
+            wentHomeCount++
+            saveRequested = true
+            screens.show(ScreenId.C33)
+        }
         if (screens.current == ScreenId.C24) {
             pieIdleSec += dt
             if (pieIdleSec >= uiConfig.pieIdleCloseSec) screens.show(ScreenId.C23)
@@ -129,6 +186,10 @@ class PanguLogic(
     }
 
     private val pokeBuffer = ArrayList<Vec3>(4)
+    private val motionBuffer = ArrayList<Vec3?>(5)
+
+    /** Recent ball drag moves (pad-local delta, time) used to work out the throw velocity. */
+    private val ballMoves = ArrayDeque<Pair<Vec3, Long>>()
 
     private fun handle(e: InteractionEvent, input: InputSnapshot) {
         when (e.type) {
@@ -141,6 +202,11 @@ class PanguLogic(
                     pet.grabFood(TargetId.foodIndex(e.target))
                     haptic = HapticCue.Grab
                 }
+                e.target == TargetId.BALL -> {
+                    pet.grabBall()
+                    ballMoves.clear()
+                    haptic = HapticCue.Grab
+                }
             }
             InteractionType.DragMove -> when {
                 e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
@@ -149,6 +215,12 @@ class PanguLogic(
                     padPose = placement.drag(pad, e.delta, head)
                 }
                 TargetId.foodIndex(e.target) >= 0 -> pet.moveFood(TargetId.foodIndex(e.target), toPadLocalDirection(e.delta))
+                e.target == TargetId.BALL -> {
+                    val d = toPadLocalDirection(e.delta)
+                    pet.moveBall(d)
+                    ballMoves.addLast(d to e.timeNanos)
+                    while (ballMoves.size > THROW_SAMPLES) ballMoves.removeFirst()
+                }
             }
             InteractionType.DragEnd -> when {
                 e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
@@ -156,11 +228,27 @@ class PanguLogic(
                     saveRequested = true
                 }
                 TargetId.foodIndex(e.target) >= 0 -> pet.releaseFood(TargetId.foodIndex(e.target))
+                e.target == TargetId.BALL -> pet.throwBall(throwVelocity(e.timeNanos))
             }
             InteractionType.Tap -> onTap(e.target)
             InteractionType.UiPrimary -> {
                 haptic = HapticCue.UiPress
                 sounds += Sfx.UiConfirm
+                when (screens.current) {
+                    ScreenId.C31, ScreenId.C32 -> openPie()
+                    ScreenId.C33 -> {
+                        pet.respawn(nowMs)
+                        hatchedCount++
+                        saveRequested = true
+                        screens.show(ScreenId.C23)
+                    }
+                    ScreenId.C35 -> {
+                        welcome = null
+                        sounds += Sfx.Happy
+                        screens.show(ScreenId.C23)
+                    }
+                    else -> Unit
+                }
                 if (screens.primary() == ScreenEffect.ConfirmPad) {
                     isDraggingPad = false
                     saveRequested = true
@@ -190,15 +278,13 @@ class PanguLogic(
                     return
                 }
                 when (screens.current) {
-                    ScreenId.C23 -> {
-                        pieIdleSec = 0f
-                        screens.show(ScreenId.C24)
-                        sounds += Sfx.Question
-                    }
+                    ScreenId.C23, ScreenId.C31, ScreenId.C32 -> openPie()
+                    ScreenId.C33 -> Unit
                     else -> backToNeeds()
                 }
             }
             TargetId.PET_TIP -> pet.boop(nowMs)
+            in TargetId.CRUMB_FIRST until TargetId.CRUMB_FIRST + 10 -> if (pet.sweepCrumb(TargetId.crumbIndex(target))) saveRequested = true
             TargetId.PET_BODY -> if (pet.actions.activity == PetActivity.Napping) {
                 pet.actions.wake()
                 sounds += Sfx.Sleepy
@@ -227,14 +313,42 @@ class PanguLogic(
                 pet.actions.startCuddle()
                 screens.show(ScreenId.C30)
             }
-            PetAction.Clean, PetAction.Dance, PetAction.Play, null -> showToast("toast.soon")
+            PetAction.Clean -> {
+                pet.startClean()
+                screens.show(ScreenId.C27)
+            }
+            PetAction.Dance -> {
+                pet.startDance()
+                screens.show(ScreenId.C28)
+            }
+            PetAction.Play -> {
+                pet.startPlay()
+                screens.show(ScreenId.C29)
+            }
+            null -> Unit
         }
     }
 
+    private fun openPie() {
+        pieIdleSec = 0f
+        screens.show(ScreenId.C24)
+        sounds += Sfx.Question
+    }
+
     private fun backToNeeds() {
-        pet.actions.stopCuddle()
-        pet.showTray(false)
+        pet.endActivity()
         screens.show(ScreenId.C23)
+    }
+
+    /** Average velocity of the last few ball drag moves, pad-local metres per second. */
+    private fun throwVelocity(endNanos: Long): Vec3 {
+        if (ballMoves.size < 2) return Vec3.ZERO
+        val first = ballMoves.first().second
+        val seconds = ((maxOf(endNanos, ballMoves.last().second) - first) / 1e9f).coerceAtLeast(0.02f)
+        var sum = Vec3.ZERO
+        for ((d, _) in ballMoves) sum = sum + d
+        val v = sum / seconds
+        return if (v.length() > MAX_THROW) v.normalized() * MAX_THROW else v
     }
 
     override fun sound(sfx: Sfx) {
@@ -245,7 +359,17 @@ class PanguLogic(
 
     override fun actionFinished(activity: PetActivity) {
         saveRequested = true
-        if (activity == PetActivity.Eating || activity == PetActivity.Napping) backToNeeds()
+        if (activity != PetActivity.Idle && activity != PetActivity.Cuddling) backToNeeds()
+    }
+
+    override fun distressChanged(stage: Distress) {
+        saveRequested = true
+        when (stage) {
+            Distress.Mopey -> screens.show(ScreenId.C31)
+            Distress.Homesick -> screens.show(ScreenId.C32)
+            Distress.WentHome -> Unit
+            Distress.None -> if (screens.current == ScreenId.C31 || screens.current == ScreenId.C32) screens.show(ScreenId.C23)
+        }
     }
 
     /** Stage-space point to pad-local metres (undoing the pad's position, yaw and display scale). */
@@ -275,5 +399,7 @@ class PanguLogic(
     companion object {
         /** Pad radius in pad-local metres (before the display scale). */
         const val PAD_RADIUS = 0.25f
+        private const val THROW_SAMPLES = 5
+        private const val MAX_THROW = 3f
     }
 }

@@ -65,6 +65,34 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     var roll = 0f
         private set
 
+    /** Head tilt back (positive looks up), radians. */
+    var pitch = 0f
+        private set
+
+    /** Extra yaw on top of [yaw], e.g. spinning while dancing. */
+    var spin = 0f
+        private set
+
+    /** Vertical offset of the whole body, metres: slumping (negative) or lifting into the beam. */
+    var lift = 0f
+        private set
+
+    /** Overall size factor, e.g. shrinking into the UFO beam. */
+    var sizeFactor = 1f
+        private set
+
+    /** Antenna droop added to the spring angle while sad, radians. */
+    var droop = 0f
+        private set
+
+    /** Where the pet should go instead of wandering (the tub, the ball); null to wander. */
+    var goal: Vec3? = null
+
+    /** Dance style: false wiggles, true spins. */
+    var danceSpins = false
+
+    private var poseTime = 0f
+
     /** Sets the pet's position directly, e.g. when restoring. */
     fun place(p: Vec3) {
         position = p
@@ -80,15 +108,65 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     /**
      * Advances one frame. While [activity] is Napping the pet heads for the nest centre and holds
      * its eyes closed; while Eating or Cuddling it stays put facing [facing] (pad-local, e.g. the head).
+     * Long frames are split into small steps so the springs and hops stay stable at any frame rate.
      */
-    fun update(dt: Float, activity: PetActivity, facing: Vec3?) {
+    fun update(dt: Float, activity: PetActivity, facing: Vec3?, distress: Distress = Distress.None) {
+        if (dt <= 0f) return
+        val steps = (dt / MAX_STEP).toInt().coerceIn(0, MAX_STEPS) + 1
+        val h = dt / steps
+        repeat(steps) { step(h, activity, facing, distress) }
+    }
+
+    private fun step(dt: Float, activity: PetActivity, facing: Vec3?, distress: Distress) {
         time += dt
         breathScale = 1f + 0.012f * sin(1.6f * time)
         roll = 0.03f * sin(0.9f * time) + if (activity == PetActivity.Napping) NAP_ROLL else 0f
         updateAntenna(dt)
         updateBlink(dt, activity == PetActivity.Napping)
+        if (distress == Distress.WentHome) {
+            updateDeparture(dt)
+            return
+        }
+        poseTime = 0f
+        sizeFactor = 1f
+        updateMood(distress)
+        if (activity == PetActivity.Dancing) updateDance() else spin = 0f
         updateMotion(dt, activity, facing)
     }
+
+    private fun updateMood(distress: Distress) {
+        val sad = distress == Distress.Mopey || distress == Distress.Homesick
+        lift = if (sad) SLUMP else 0f
+        droop = if (sad) DROOP else 0f
+        // Homesick: a slow, small tilt back to look at the sky.
+        pitch = if (distress == Distress.Homesick) LOOK_UP * (0.6f + 0.4f * sin(0.5f * time)) else 0f
+    }
+
+    /** Dance moves on a 110 BPM beat: a roll wiggle, or a full turn every two bars with hops. */
+    private fun updateDance() {
+        val beat = time * BPM / 60f
+        if (danceSpins) {
+            spin = (beat / 8f % 1f) * 2f * PI.toFloat()
+            val onBeat = (beat % 2f) < 0.25f
+            if (onBeat && hopT < 0f) hopHeight = config.hopHeight * 0.5f * sin(PI.toFloat() * (beat % 2f) / 0.25f)
+        } else {
+            roll += 0.21f * sin(PI.toFloat() * beat)
+            if ((beat % 1f) < 0.05f) kickAntenna(1.5f)
+        }
+    }
+
+    /** Going home: the pet rises 10 cm and shrinks to 88 % over three seconds. */
+    private fun updateDeparture(dt: Float) {
+        poseTime = (poseTime + dt).coerceAtMost(DEPART_SEC)
+        val t = poseTime / DEPART_SEC
+        lift = 0.10f * t
+        sizeFactor = 1f - 0.12f * t
+        pitch = LOOK_UP
+        droop = 0f
+    }
+
+    /** True once the departure animation has finished. */
+    val departed: Boolean get() = poseTime >= DEPART_SEC
 
     private fun updateAntenna(dt: Float) {
         // Damped spring toward rest, plus a gentle idle wobble.
@@ -136,8 +214,11 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         }
         squash += (1f - squash) * (dt * 8f).coerceAtMost(1f)
 
-        val goal = if (activity == PetActivity.Napping) NEST else target
-        val stay = activity == PetActivity.Eating || activity == PetActivity.Cuddling
+        val goal = when {
+            activity == PetActivity.Napping -> NEST
+            else -> this.goal ?: target
+        }
+        val stay = activity == PetActivity.Eating || activity == PetActivity.Cuddling || activity == PetActivity.Dancing
         val away = goal - position
         val dist = sqrt(away.x * away.x + away.z * away.z)
         if (!stay && dist > ARRIVE) {
@@ -149,7 +230,7 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
             hopT = 0f
             return
         }
-        if (facing != null && activity != PetActivity.Napping) yaw = turnToward(yaw, atan2(facing.x - position.x, facing.z - position.z), dt)
+        if (facing != null) yaw = turnToward(yaw, atan2(facing.x - position.x, facing.z - position.z), dt)
         if (activity == PetActivity.Idle) {
             pauseLeft -= dt
             if (pauseLeft <= 0f) {
@@ -192,6 +273,13 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         private const val MAX_HOP = 0.07f
         private const val TURN_SPEED = 3f
         private const val NAP_ROLL = -0.1f
+        private const val BPM = 110f
+        private const val SLUMP = -0.008f
+        private const val DROOP = 0.3f
+        private const val LOOK_UP = 0.15f
+        private const val MAX_STEP = 1f / 60f
+        private const val MAX_STEPS = 120
+        private const val DEPART_SEC = 3f
         val NEST = Vec3(0f, 0f, 0f)
         val MOUTH_MODEL = Vec3(0f, 1.18f, 0.72f)
 

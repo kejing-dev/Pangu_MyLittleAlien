@@ -14,6 +14,9 @@ import com.technomancer.pangu.logic.habitat.PadPose
 import com.technomancer.pangu.logic.input.InputSnapshot
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
+import com.technomancer.pangu.logic.pet.Distress
+import com.technomancer.pangu.logic.pet.PetActivity
+import com.technomancer.pangu.logic.pet.PetWorld
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.sin
@@ -26,11 +29,17 @@ class SceneEntities(
     val pet: AlienRig?,
     val tray: Entity?,
     val foods: List<Entity>,
+    val tub: Entity? = null,
+    val bubbles: List<Entity> = emptyList(),
+    val ball: Entity? = null,
+    val crumbs: List<Entity> = emptyList(),
+    val beam: Entity? = null,
+    val skyRing: Entity? = null,
 )
 
 /**
- * Writes the logic's state onto entities each frame: habitat pose, handle glow, the pet's rig,
- * snacks, the floating orb and the panels turning to face the player. Stage-space poses are
+ * Writes the logic's state onto entities each frame: habitat pose, handle glow, the pet's rig and
+ * poses, props, the floating orb and the panels turning to face the player. Stage-space poses are
  * converted into the scene root's space; everything else is pad-local.
  * Entity visibility is not exposed to Kotlin in this SDK, so hidden things are scaled to zero.
  */
@@ -53,6 +62,12 @@ class PresentationSystem(
     private val pieTransform = scene.pie?.transform()
     private val trayTransform = scene.tray?.transform()
     private val foodTransforms = scene.foods.map { it.transform() }
+    private val tubTransform = scene.tub?.transform()
+    private val bubbleTransforms = scene.bubbles.mapNotNull { it.transform() }
+    private val ballTransform = scene.ball?.transform()
+    private val crumbTransforms = scene.crumbs.mapNotNull { it.transform() }
+    private val beamTransform = scene.beam?.transform()
+    private val skyRingTransform = scene.skyRing?.transform()
     private val petRoot = scene.pet?.root?.transform()
     private val petBody = scene.pet?.body?.transform()
     private val petEyes = scene.pet?.eyes?.transform()
@@ -89,17 +104,19 @@ class PresentationSystem(
         val petShown = logic.isPetFlow
         val orbBase = if (petShown) orbAbovePet(logic) else Vec3(0f, config.orbHeight, 0f)
         val bob = config.orbBobAmplitude / habitatScale * sin(2.0 * PI * config.orbBobHz * time).toFloat()
+        val orbHidden = petShown && logic.pet.stage() == Distress.WentHome
+        orbTransform?.setScaleVector(if (orbHidden) Vector3.ZERO else Vector3.ONE)
         orbTransform?.setPosition(Vector3(orbBase.x, orbBase.y + bob, orbBase.z))
 
         applyPet(logic, petShown)
-        applyTray(logic)
+        applyProps(logic.pet, petShown)
+        applyDistress(logic, petShown)
 
         if (pad != null) {
             val head = if (input.headValid) habitat.convertPositionFrom(input.headPosition.toSdk(), null) else null
             billboard(panelTransform, panelOffset, head)
             if (placing) billboard(labelTransform, labelOffset, head)
-            val pieOpen = logic.screens.current == ScreenId.C24
-            if (pieOpen) {
+            if (logic.screens.current == ScreenId.C24) {
                 billboard(pieTransform, Vector3(orbBase.x, orbBase.y, orbBase.z), head)
             } else {
                 pieTransform?.setScaleVector(Vector3.ZERO)
@@ -109,8 +126,8 @@ class PresentationSystem(
 
     private fun orbAbovePet(logic: PanguLogic): Vec3 {
         val body = logic.pet.body
-        val height = AlienParts.MODEL_HEIGHT * logic.pet.localScale(logic.nowMs)
-        return Vec3(body.position.x, body.hopHeight + height + ORB_ABOVE_HEAD / habitatScale, body.position.z)
+        val height = AlienParts.MODEL_HEIGHT * logic.pet.localScale(logic.nowMs) * body.sizeFactor
+        return Vec3(body.position.x, body.hopHeight + height * (1f + ORB_GAP), body.position.z)
     }
 
     private fun applyPet(logic: PanguLogic, shown: Boolean) {
@@ -120,14 +137,18 @@ class PresentationSystem(
             return
         }
         val body = logic.pet.body
-        val s = logic.pet.localScale(logic.nowMs)
-        rootT.setPosition(Vector3(body.position.x, body.position.y + body.hopHeight, body.position.z))
-        rootT.setQuaternion(Quat.fromYaw(body.yaw).toSdk())
+        val s = logic.pet.localScale(logic.nowMs) * body.sizeFactor
+        val inTub = logic.pet.actions.activity == PetActivity.Cleaning && logic.pet.tubOut
+        val bathBob = if (inTub) 0.035f + 0.004f * sin(4.0 * time).toFloat() else 0f
+        rootT.setPosition(Vector3(body.position.x, body.position.y + body.hopHeight + body.lift / habitatScale + bathBob, body.position.z))
+        rootT.setQuaternion(Quat.fromYaw(body.yaw + body.spin).toSdk())
         rootT.setScaleVector(Vector3(s))
         petBody?.apply {
-            val stretch = body.breathScale * body.squash
-            setScaleVector(Vector3(1f / body.squash.coerceAtLeast(0.5f), stretch, 1f / body.squash.coerceAtLeast(0.5f)))
-            setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.roll).toSdk())
+            val squash = body.squash.coerceAtLeast(0.5f)
+            setScaleVector(Vector3(1f / squash, body.breathScale * squash, 1f / squash))
+            val roll = Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.roll)
+            val tilt = Quat.fromAxisAngle(Vec3(1f, 0f, 0f), -body.pitch)
+            setQuaternion((roll * tilt).toSdk())
         }
         petEyes?.apply {
             setPosition(eyeBase)
@@ -135,21 +156,67 @@ class PresentationSystem(
         }
         petAntenna?.apply {
             setPosition(antennaBase)
-            setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.antennaAngle).toSdk())
+            // Sideways spring wobble, plus a forward droop when the pet is sad.
+            val wobble = Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.antennaAngle)
+            val droop = Quat.fromAxisAngle(Vec3(1f, 0f, 0f), body.droop)
+            setQuaternion((wobble * droop).toSdk())
         }
     }
 
-    private fun applyTray(logic: PanguLogic) {
-        val out = logic.pet.trayOut
-        trayTransform?.setScaleVector(if (out) TRAY_SCALE else Vector3.ZERO)
-        logic.pet.foods.forEachIndexed { i, food ->
+    private fun applyProps(pet: PetWorld, shown: Boolean) {
+        val trayOut = shown && pet.trayOut
+        trayTransform?.setScaleVector(if (trayOut) TRAY_SCALE else Vector3.ZERO)
+        pet.foods.forEachIndexed { i, food ->
             val t = foodTransforms.getOrNull(i) ?: return@forEachIndexed
-            if (!out || food.eaten) {
+            if (!trayOut || food.eaten) {
                 t.setScaleVector(Vector3.ZERO)
             } else {
                 t.setScaleVector(Vector3.ONE)
                 t.setPosition(food.position.toSdk())
             }
+        }
+
+        val tubOut = shown && pet.tubOut
+        tubTransform?.setScaleVector(if (tubOut) Vector3.ONE else Vector3.ZERO)
+        bubbleTransforms.forEachIndexed { i, t ->
+            val phase = time * 1.3 + i * 1.7
+            val r = 0.05f * ((i % 3) + 1) / 3f
+            t.setPosition(Vector3(r * sin(phase).toFloat(), 0.07f + 0.02f * sin(phase * 1.9).toFloat(), r * sin(phase + 1.3).toFloat()))
+        }
+
+        val ballOut = shown && pet.ballOut
+        ballTransform?.setScaleVector(if (ballOut) Vector3.ONE else Vector3.ZERO)
+        if (ballOut) ballTransform?.setPosition(pet.ball.position.toSdk())
+
+        val pulse = if (pet.sweepInvite) 1f + 0.25f * sin(6.0 * time).toFloat() else 1f
+        crumbTransforms.forEachIndexed { i, t ->
+            val p = pet.crumbs.positions.getOrNull(i)
+            if (!shown || p == null) {
+                t.setScaleVector(Vector3.ZERO)
+            } else {
+                t.setScaleVector(Vector3(pulse))
+                t.setPosition(Vector3(p.x, 0.012f + 0.003f * sin(2.0 * time + i).toFloat(), p.z))
+                t.setQuaternion(Quat.fromYaw((time * 0.8 + i).toFloat()).toSdk())
+            }
+        }
+    }
+
+    /** Sky ring over a homesick pet, and the UFO beam when it goes home. */
+    private fun applyDistress(logic: PanguLogic, shown: Boolean) {
+        val stage = if (shown) logic.pet.stage() else Distress.None
+        val body = logic.pet.body
+        val height = AlienParts.MODEL_HEIGHT * logic.pet.localScale(logic.nowMs) * body.sizeFactor
+        if (stage == Distress.Homesick) {
+            skyRingTransform?.setScaleVector(Vector3.ONE)
+            skyRingTransform?.setPosition(Vector3(body.position.x, height * (1f + RING_GAP), body.position.z))
+        } else {
+            skyRingTransform?.setScaleVector(Vector3.ZERO)
+        }
+        if (stage == Distress.WentHome) {
+            beamTransform?.setScaleVector(Vector3.ONE)
+            beamTransform?.setPosition(Vector3(body.position.x, height * (1f + BEAM_GAP), body.position.z))
+        } else {
+            beamTransform?.setScaleVector(Vector3.ZERO)
         }
     }
 
@@ -166,7 +233,10 @@ class PresentationSystem(
     companion object {
         /** Height of the handle label above the pad top, metres. */
         private const val LABEL_HEIGHT = 0.06f
-        private const val ORB_ABOVE_HEAD = 0.10f
+        /** Gaps above the pet's head, as a fraction of its current height, so they stay close while it is small. */
+        private const val ORB_GAP = 0.3f
+        private const val RING_GAP = 0.12f
+        private const val BEAM_GAP = 1.2f
         private val TRAY_SCALE = Vector3(1f, 1f, 0.6f)
     }
 }

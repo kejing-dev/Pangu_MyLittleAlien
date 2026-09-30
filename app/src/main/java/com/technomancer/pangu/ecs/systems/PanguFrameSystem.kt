@@ -51,6 +51,7 @@ class PanguFrameSystem : System() {
             null -> Unit
         }
         while (true) sfx.play(logic.nextSound() ?: break)
+        sfx.setLoop(if (logic.isPaused) null else logic.danceMusic)
 
         autosaveSec += context.deltaTime
         if (logic.consumeSaveRequest() || autosaveSec >= AUTOSAVE_SEC) {

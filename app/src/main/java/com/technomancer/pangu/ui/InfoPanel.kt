@@ -83,10 +83,20 @@ fun InfoPanel(
             bodyText(content, pet, loc)?.let {
                 Text(text = it, color = PanelColors.body, fontSize = scale.sp(18f))
             }
-            if (content.kind == PanelKind.Prog && content.id == ScreenId.C26 && pet != null) {
-                ProgressBlock(pet.napMinutes, 30, loc.format("fmt.min", "a" to pet.napMinutes, "b" to 30), scale)
+            if (content.kind == PanelKind.Prog && pet != null) {
+                when (content.id) {
+                    ScreenId.C26 -> ProgressBlock(pet.napMinutes, 30, loc.format("fmt.min", "a" to pet.napMinutes, "b" to 30), scale)
+                    ScreenId.C27 -> ProgressBlock(pet.timedSec, 45, loc.format("fmt.sec", "a" to pet.timedSec, "b" to 45), scale)
+                    ScreenId.C28 -> ProgressBlock(pet.timedSec, 30, loc.format("fmt.sec", "a" to pet.timedSec, "b" to 30), scale)
+                    else -> Unit
+                }
             }
+            if (content.kind == PanelKind.Rows && content.id == ScreenId.C35 && pet != null) AwayRows(pet, loc, scale)
             content.primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = onPrimary) }
+            if (content.id == ScreenId.C33 && pet != null) {
+                val (h, r, w) = pet.counters
+                Text(text = loc.format("fmt.counters", "h" to h, "r" to r, "w" to w), color = PanelColors.muted, fontSize = scale.sp(15f))
+            }
         }
         if (showDebug) PillButton(loc.get("debug.recenter"), scale, primary = false, onClick = onRecenter)
     }
@@ -104,7 +114,26 @@ private fun bodyText(content: ScreenContent, pet: PetUi?, loc: LocService): Stri
         }
     }
     content.id == ScreenId.C25 -> loc.format("scr.C25.b", "food" to loc.get("food.2"))
+    content.id == ScreenId.C35 && pet != null -> if (pet.awayMinutes < 60) {
+        loc.format("scr.C35.bMin", "n" to pet.awayMinutes)
+    } else {
+        loc.format("scr.C35.b", "n" to pet.awayMinutes / 60)
+    }
     else -> content.bodyKey?.let { loc.format(it, "name" to (pet?.name ?: "")) }
+}
+
+/** C35: the needs that dropped the most while away, and new crumbs. */
+@Composable
+private fun AwayRows(pet: PetUi, loc: LocService, scale: UiScale) {
+    val rows = pet.awayDrops.map { (need, before, after) -> loc.get("ui.needs.${need.ordinal}") to "$before → $after" } +
+        if (pet.awayCrumbs > 0) listOf(loc.get("scr.C35.r.crumbs") to pet.awayCrumbs.toString()) else emptyList()
+    rows.forEach { (key, value) ->
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = key, color = PanelColors.muted, fontSize = scale.sp(16f), modifier = Modifier.weight(1f))
+            Text(text = value, color = PanelColors.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(scale.px(1.5f)).background(PanelColors.divider))
+    }
 }
 
 /** C23: name, mood chip and the six need bars. */

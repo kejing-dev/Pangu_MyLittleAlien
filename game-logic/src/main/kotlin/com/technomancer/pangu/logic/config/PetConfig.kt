@@ -48,6 +48,28 @@ data class PetConfig(
     val hopHeight: Float = 0.04f,
     val rimMargin: Float = 0.08f,
     val walkSpeed: Float = 0.12f,
+
+    val bathSec: Float = 45f,
+    val bathGain: Float = 50f,
+    val danceSec: Float = 30f,
+    val danceFun: Float = 30f,
+    val danceEnergyCost: Float = 8f,
+    val danceHygieneCost: Float = 5f,
+    /** Average head-and-hands speed (m/s) that counts as dancing along. */
+    val danceAlongSpeed: Float = 0.3f,
+    val danceAlongSocial: Float = 10f,
+    val fetchFun: Float = 8f,
+    val fetchSocial: Float = 3f,
+    val fetchEnergyCost: Float = 3f,
+    val ballIdleSec: Float = 60f,
+    val crumbIntervalHours: Float = 4f,
+    val maxCrumbs: Int = 5,
+    val autonomyIdleSec: Float = 20f,
+    val autonomyEfficiency: Float = 0.5f,
+    val mopeyHours: Float = 8f,
+    val homesickHours: Float = 16f,
+    val departHours: Float = 24f,
+    val welcomeBackMinMinutes: Float = 60f,
 )
 
 /** Real-time simulation and catch-up. */

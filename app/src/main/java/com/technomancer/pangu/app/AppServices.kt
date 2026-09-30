@@ -20,6 +20,9 @@ import com.technomancer.pangu.logic.input.InteractionQueue
 import com.technomancer.pangu.logic.loc.Language
 import com.technomancer.pangu.logic.loc.LocService
 import com.technomancer.pangu.logic.loc.LocTable
+import com.technomancer.pangu.logic.math.Vec3
+import com.technomancer.pangu.logic.pet.AwaySummary
+import com.technomancer.pangu.logic.pet.MoodCalculator
 import com.technomancer.pangu.logic.pet.NeedsSim
 import com.technomancer.pangu.logic.save.SaveData
 import com.technomancer.pangu.logic.sim.CatchUp
@@ -66,7 +69,8 @@ object AppServices {
             clock = clock,
             random = XorShift32.fromLong(clock.nowUtcMillis()),
         )
-        restorePet(logic, save, CatchUp(simConfig, NeedsSim(petConfig), clock), clock)
+        val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
+        restorePet(logic, save, catchUp, clock)
 
         val language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
         val loc = LocService(loadTables(app.assets), language) { Log.w("Pangu", "Missing string $it") }
@@ -76,7 +80,7 @@ object AppServices {
             volume = save.settings.volume / 100f
             soundOn = save.settings.soundOn
         }
-        val session = SessionController(logic, store, clock, ui, save)
+        val session = SessionController(logic, store, clock, ui, save, catchUp)
 
         ServiceRegistry.register(DebugFlags(debuggable, if (debuggable) debugConfig.timeScale else 1f))
         ServiceRegistry.register(configs)
@@ -106,14 +110,31 @@ object AppServices {
             return
         }
         val pet = logic.pet
+        logic.hatchedCount = save.hatchedCount
+        logic.dormantCount = save.dormantCount
+        logic.wentHomeCount = save.wentHomeCount
         pet.hatchMs = data.hatchUtcMs
         data.needs.forEachIndexed { i, v -> if (i < pet.needs.values.size) pet.needs.values[i] = v }
-        pet.needs.crumbs = data.crumbs
+        for (i in 0 until data.crumbPositions.size / 2) {
+            pet.crumbs.positions += Vec3(data.crumbPositions[i * 2], 0f, data.crumbPositions[i * 2 + 1])
+        }
+        pet.needs.crumbs = pet.crumbs.positions.size
+        pet.distress.hours = data.distressHours
+
         val from = if (save.lastSimUtcMs > 0L) save.lastSimUtcMs else now
         pet.actions.restoreNap(data.napEndUtcMs, from)
-        val steps = catchUp.pet(pet.needs, pet.actions, from, now)
+        val before = pet.needs.values.copyOf()
+        val crumbsBefore = pet.needs.crumbs
+        val steps = catchUp.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config))
+        pet.syncStage()
         logic.nowMs = now
+        logic.announceDistress()
         Log.i("Pangu", "Caught up $steps minutes of pet time")
+
+        val lastSeen = if (save.lastSeenUtcMs > 0L) save.lastSeenUtcMs else now
+        AwaySummary.of(before, pet.needs.values, crumbsBefore, pet.needs.crumbs, now - lastSeen, pet.config.welcomeBackMinMinutes)
+            ?.takeIf { logic.isPetFlow }
+            ?.let { logic.showWelcomeBack(it) }
     }
 
     private fun loadTables(assets: AssetManager): Map<Language, LocTable> =

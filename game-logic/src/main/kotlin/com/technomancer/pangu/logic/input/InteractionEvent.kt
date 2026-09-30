@@ -9,11 +9,17 @@ object TargetId {
     const val CARE_ORB = 2
     const val PET_BODY = 3
     const val PET_TIP = 4
+    const val BALL = 5
+
+    /** Crumbs use CRUMB_FIRST + index. */
+    const val CRUMB_FIRST = 30
+    fun crumb(index: Int) = CRUMB_FIRST + index
+    fun crumbIndex(target: Int) = if (target in CRUMB_FIRST until CRUMB_FIRST + 10) target - CRUMB_FIRST else -1
 
     /** Snacks on the tray use FOOD_FIRST + index. */
     const val FOOD_FIRST = 10
     fun food(index: Int) = FOOD_FIRST + index
-    fun foodIndex(target: Int) = if (target >= FOOD_FIRST) target - FOOD_FIRST else -1
+    fun foodIndex(target: Int) = if (target in FOOD_FIRST until FOOD_FIRST + 10) target - FOOD_FIRST else -1
 }
 
 enum class InteractionType {
@@ -31,11 +37,12 @@ enum class InteractionType {
     UiPie,
 }
 
-/** One input event. [delta] is the drag movement since the previous event, in Stage space. */
+/** One input event. [delta] is the drag movement since the previous event, in Stage space; [timeNanos] when it happened. */
 class InteractionEvent {
     var type: InteractionType = InteractionType.Tap
     var target: Int = TargetId.NONE
     var delta: Vec3 = Vec3.ZERO
+    var timeNanos: Long = 0L
 }
 
 /**
@@ -48,7 +55,7 @@ class InteractionQueue(capacity: Int = 64) {
     var size = 0
         private set
 
-    fun push(type: InteractionType, target: Int = TargetId.NONE, delta: Vec3 = Vec3.ZERO) {
+    fun push(type: InteractionType, target: Int = TargetId.NONE, delta: Vec3 = Vec3.ZERO, timeNanos: Long = 0L) {
         if (size == events.size) {
             head = (head + 1) % events.size
             size--
@@ -57,6 +64,7 @@ class InteractionQueue(capacity: Int = 64) {
         e.type = type
         e.target = target
         e.delta = delta
+        e.timeNanos = timeNanos
         size++
     }
 

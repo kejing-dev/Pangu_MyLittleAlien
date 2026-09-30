@@ -3,7 +3,7 @@ package com.technomancer.pangu.logic.pet
 import com.technomancer.pangu.logic.config.PetConfig
 
 /** What the pet is doing right now. */
-enum class PetActivity { Idle, Eating, Napping, Cuddling }
+enum class PetActivity { Idle, Eating, Napping, Cuddling, Cleaning, Dancing, Playing }
 
 sealed class ActionResult {
     data object Started : ActionResult()
@@ -26,9 +26,20 @@ class PetActions(private val config: PetConfig) {
     var napEndMs = 0L
         private set
 
+    /** Nap gain multiplier: 1 when the player chose it, lower when the pet dozes off by itself. */
+    private var napEfficiency = 1f
+
     private var strokeMinuteStartMs = 0L
     private var strokeGainedThisMinute = 0f
     private var lastBoopMs = Long.MIN_VALUE / 2
+
+    /** Seconds into the current bath or dance. */
+    var timedSec = 0f
+        private set
+
+    /** Play started by the pet itself earns less. */
+    var playEfficiency = 1f
+        private set
 
     fun startEat(needs: Needs, nowMs: Long, gainMultiplier: Float = 1f): ActionResult {
         if (activity == PetActivity.Eating) return ActionResult.Refused("busy")
@@ -40,8 +51,9 @@ class PetActions(private val config: PetConfig) {
         return ActionResult.Started
     }
 
-    fun startNap(nowMs: Long) {
+    fun startNap(nowMs: Long, efficiency: Float = 1f) {
         activity = PetActivity.Napping
+        napEfficiency = efficiency
         napEndMs = nowMs + (config.napMaxMin * 60_000).toLong()
     }
 
@@ -64,8 +76,23 @@ class PetActions(private val config: PetConfig) {
         if (activity == PetActivity.Idle) activity = PetActivity.Cuddling
     }
 
-    fun stopCuddle() {
-        if (activity == PetActivity.Cuddling) activity = PetActivity.Idle
+    fun startClean() = startTimed(PetActivity.Cleaning)
+
+    fun startDance() = startTimed(PetActivity.Dancing)
+
+    fun startPlay(efficiency: Float = 1f) {
+        activity = PetActivity.Playing
+        playEfficiency = efficiency
+    }
+
+    private fun startTimed(kind: PetActivity) {
+        activity = kind
+        timedSec = 0f
+    }
+
+    /** Ends cuddling or play (the player closed it); other actions keep running. */
+    fun stopOpenEnded() {
+        if (activity == PetActivity.Cuddling || activity == PetActivity.Playing) activity = PetActivity.Idle
     }
 
     /** Stroking the head for [seconds]: Social rises, capped per minute. Returns the Social gained. */
@@ -88,8 +115,18 @@ class PetActions(private val config: PetConfig) {
         return true
     }
 
-    /** Advances timed actions. Returns true when an action finished this step. */
-    fun update(needs: Needs, nowMs: Long, dtSec: Float): Boolean {
+    /** One fetch during play: Fun, Social and a little Energy. */
+    fun fetch(needs: Needs) {
+        needs.add(Need.Fun, config.fetchFun * playEfficiency)
+        needs.add(Need.Social, config.fetchSocial * playEfficiency)
+        needs.add(Need.Energy, -config.fetchEnergyCost)
+    }
+
+    /**
+     * Advances timed actions. [scrubbing] doubles the bath rate. [dancedAlong] is checked when a
+     * dance ends. Returns true when an action finished this step.
+     */
+    fun update(needs: Needs, nowMs: Long, dtSec: Float, scrubbing: Boolean = false, dancedAlong: () -> Boolean = { false }): Boolean {
         when (activity) {
             PetActivity.Eating -> if (nowMs >= eatEndMs) {
                 needs.add(Need.Hunger, pendingHunger)
@@ -98,14 +135,64 @@ class PetActions(private val config: PetConfig) {
                 return true
             }
             PetActivity.Napping -> {
-                needs.add(Need.Energy, config.napEnergyPerMin * dtSec / 60f)
+                needs.add(Need.Energy, config.napEnergyPerMin * napEfficiency * dtSec / 60f)
                 if (nowMs >= napEndMs || needs[Need.Energy] >= 100f) {
                     wake()
                     return true
                 }
             }
+            PetActivity.Cleaning -> {
+                val rate = if (scrubbing) 2f else 1f
+                val step = minOf(dtSec * rate, config.bathSec - timedSec)
+                timedSec += step
+                needs.add(Need.Hygiene, config.bathGain * step / config.bathSec)
+                if (timedSec >= config.bathSec) {
+                    activity = PetActivity.Idle
+                    return true
+                }
+            }
+            PetActivity.Dancing -> {
+                val step = minOf(dtSec, config.danceSec - timedSec)
+                timedSec += step
+                val f = step / config.danceSec
+                needs.add(Need.Fun, config.danceFun * f)
+                needs.add(Need.Energy, -config.danceEnergyCost * f)
+                needs.add(Need.Hygiene, -config.danceHygieneCost * f)
+                if (timedSec >= config.danceSec) {
+                    if (dancedAlong()) needs.add(Need.Social, config.danceAlongSocial)
+                    activity = PetActivity.Idle
+                    return true
+                }
+            }
             else -> Unit
         }
+        return false
+    }
+
+    /**
+     * The app went to the background: a bath or dance past halfway finishes with its full gain,
+     * one before halfway is cancelled. Returns true if something finished.
+     */
+    fun finishOrCancelOnPause(needs: Needs): Boolean {
+        val total = when (activity) {
+            PetActivity.Cleaning -> config.bathSec
+            PetActivity.Dancing -> config.danceSec
+            else -> return false
+        }
+        if (timedSec / total > 0.5f) {
+            val rest = total - timedSec
+            if (activity == PetActivity.Cleaning) {
+                needs.add(Need.Hygiene, config.bathGain * rest / total)
+            } else {
+                val f = rest / total
+                needs.add(Need.Fun, config.danceFun * f)
+                needs.add(Need.Energy, -config.danceEnergyCost * f)
+                needs.add(Need.Hygiene, -config.danceHygieneCost * f)
+            }
+            activity = PetActivity.Idle
+            return true
+        }
+        activity = PetActivity.Idle
         return false
     }
 
