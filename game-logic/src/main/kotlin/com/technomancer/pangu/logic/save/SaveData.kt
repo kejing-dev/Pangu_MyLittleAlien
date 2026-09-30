@@ -19,6 +19,7 @@ data class SaveData(
     val lastSimUtcMs: Long = 0L,
     val lastSeenUtcMs: Long = 0L,
     val padPose: PadPoseData = PadPoseData(),
+    val pet: PetData = PetData(),
 ) {
     companion object {
         const val SCHEMA_VERSION = 4
@@ -39,4 +40,14 @@ data class PadPoseData(
     val has: Boolean = false,
     val pos: List<Float> = listOf(0f, 0f, 0f),
     val yaw: Float = 0f,
+)
+
+/** The hatched pet. Needs are Hunger, Energy, Hygiene, Fun, Social; Tidy comes from [crumbs]. */
+@Serializable
+data class PetData(
+    val hatchUtcMs: Long = 0L,
+    val needs: List<Float> = emptyList(),
+    val crumbs: Int = 0,
+    val napEndUtcMs: Long = 0L,
+    val distressHours: Float = 0f,
 )

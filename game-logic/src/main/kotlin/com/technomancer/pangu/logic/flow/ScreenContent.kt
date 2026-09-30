@@ -31,6 +31,11 @@ data class ScreenContent(
             ScreenContent(ScreenId.C02, PanelKind.Hab, Hint.Grab, primaryKey = "scr.C02.p"),
             ScreenContent(ScreenId.C34, PanelKind.Msg, Hint.None),
             ScreenContent(ScreenId.C37, PanelKind.Msg, Hint.Grab, primaryKey = "scr.C37.p"),
+            ScreenContent(ScreenId.C23, PanelKind.Needs, Hint.Poke, titleKey = null, bodyKey = null),
+            ScreenContent(ScreenId.C24, PanelKind.Msg, Hint.Poke, bodyKey = null),
+            ScreenContent(ScreenId.C25, PanelKind.Msg, Hint.Grab),
+            ScreenContent(ScreenId.C26, PanelKind.Prog, Hint.None),
+            ScreenContent(ScreenId.C30, PanelKind.Msg, Hint.Rub),
         ).associateBy { it.id }
 
         /** The panel for [id], or null for screens that have no panel yet. */

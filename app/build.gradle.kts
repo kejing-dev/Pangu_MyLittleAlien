@@ -29,6 +29,9 @@ android {
         }
     }
 
+    // Procedural sound clips rendered by :game-logic:renderAudio.
+    sourceSets["main"].assets.srcDir("build/generated/pangu/assets")
+
     androidResources {
         noCompress += listOf(".bundle", ".glb")
     }
@@ -72,4 +75,8 @@ configurations.all {
         exclude("androidx.compose.ui", "ui-text")
         exclude("androidx.compose.foundation", "foundation")
     }
+}
+
+tasks.named("preBuild") {
+    dependsOn(":game-logic:renderAudio")
 }

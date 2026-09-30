@@ -10,6 +10,7 @@ import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.save.ISaveStore
 import com.technomancer.pangu.logic.save.LoadResult
 import com.technomancer.pangu.logic.save.PadPoseData
+import com.technomancer.pangu.logic.save.PetData
 import com.technomancer.pangu.logic.save.SaveData
 import com.technomancer.pangu.logic.save.SaveSerializer
 import com.technomancer.pangu.logic.time.IClock
@@ -82,11 +83,23 @@ class SessionController(
         } else {
             save.padPose
         }
+        val pet = logic.pet
+        val petData = if (pet.hatchMs > 0L) {
+            PetData(
+                hatchUtcMs = pet.hatchMs,
+                needs = pet.needs.values.toList(),
+                crumbs = pet.needs.crumbs,
+                napEndUtcMs = pet.actions.napEndMs,
+            )
+        } else {
+            save.pet
+        }
         save = save.copy(
             screen = logic.screens.persistentScreen,
             padPose = padData,
+            pet = petData,
             lastSeenUtcMs = now,
-            lastSimUtcMs = now,
+            lastSimUtcMs = logic.nowMs,
         )
         val text = SaveSerializer.encode(save)
         ioThread.execute {

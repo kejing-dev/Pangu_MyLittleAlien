@@ -6,8 +6,11 @@ enum class ScreenEffect { None, ConfirmPad }
 /**
  * Which screen is showing. The pause screen (C34) and the recenter screen (C37) sit on top of
  * whatever was showing and return to it when dismissed.
+ *
+ * [afterPlacement] is where the game continues once the pad is placed: C03 (creation) normally,
+ * or C23 (the pet) while creation is not built yet.
  */
-class ScreenMachine(start: ScreenId) {
+class ScreenMachine(start: ScreenId, private val afterPlacement: ScreenId = ScreenId.C03) {
     var current: ScreenId = start
         private set
 
@@ -21,7 +24,7 @@ class ScreenMachine(start: ScreenId) {
     val persistentScreen: ScreenId
         get() {
             val base = if (current == ScreenId.C34) beforePause ?: current else current
-            return if (base == ScreenId.C37) beforeRecenter ?: ScreenId.C03 else base
+            return if (base == ScreenId.C37) beforeRecenter ?: afterPlacement else base
         }
 
     fun pause() {
@@ -42,13 +45,19 @@ class ScreenMachine(start: ScreenId) {
         current = ScreenId.C37
     }
 
+    /** Moves to [id] unless an overlay is showing. */
+    fun show(id: ScreenId) {
+        if (current == ScreenId.C34 || current == ScreenId.C37) return
+        current = id
+    }
+
     fun primary(): ScreenEffect = when (current) {
         ScreenId.C02 -> {
-            current = ScreenId.C03
+            current = afterPlacement
             ScreenEffect.ConfirmPad
         }
         ScreenId.C37 -> {
-            current = beforeRecenter?.takeIf { it != ScreenId.C02 } ?: ScreenId.C03
+            current = beforeRecenter?.takeIf { it != ScreenId.C02 } ?: afterPlacement
             beforeRecenter = null
             ScreenEffect.ConfirmPad
         }

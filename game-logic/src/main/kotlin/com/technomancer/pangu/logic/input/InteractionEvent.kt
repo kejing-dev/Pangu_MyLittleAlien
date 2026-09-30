@@ -7,6 +7,13 @@ object TargetId {
     const val NONE = 0
     const val PAD_HANDLE = 1
     const val CARE_ORB = 2
+    const val PET_BODY = 3
+    const val PET_TIP = 4
+
+    /** Snacks on the tray use FOOD_FIRST + index. */
+    const val FOOD_FIRST = 10
+    fun food(index: Int) = FOOD_FIRST + index
+    fun foodIndex(target: Int) = if (target >= FOOD_FIRST) target - FOOD_FIRST else -1
 }
 
 enum class InteractionType {
@@ -19,6 +26,9 @@ enum class InteractionType {
     UiPrimary,
     UiSecondary,
     UiRecenter,
+
+    /** A care-pie bubble; the target field holds the action index. */
+    UiPie,
 }
 
 /** One input event. [delta] is the drag movement since the previous event, in Stage space. */

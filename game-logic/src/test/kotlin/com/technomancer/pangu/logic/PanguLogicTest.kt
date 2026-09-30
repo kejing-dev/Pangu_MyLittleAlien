@@ -45,7 +45,7 @@ class PanguLogicTest {
 
         events.push(InteractionType.UiPrimary)
         logic.tick(0.016f, input, events)
-        assertEquals(ScreenId.C03, logic.screens.current)
+        assertEquals(ScreenId.C23, logic.screens.current)
         events.push(InteractionType.DragStart, TargetId.PAD_HANDLE)
         events.push(InteractionType.DragMove, TargetId.PAD_HANDLE, Vec3(0.2f, 0f, 0f))
         logic.tick(0.016f, input, events)

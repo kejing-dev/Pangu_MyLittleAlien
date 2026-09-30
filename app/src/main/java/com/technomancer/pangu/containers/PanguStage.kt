@@ -35,7 +35,11 @@ import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
 import com.technomancer.pangu.ecs.components.TagComponent
+import com.technomancer.pangu.audio.SfxPlayer
+import com.technomancer.pangu.ecs.entities.AlienFactory
 import com.technomancer.pangu.ecs.entities.HabitatFactory
+import com.technomancer.pangu.ecs.entities.PropFactory
+import com.technomancer.pangu.ecs.systems.SceneEntities
 import com.technomancer.pangu.ecs.entities.MeshFactory
 import com.technomancer.pangu.ecs.systems.InputSystem
 import com.technomancer.pangu.ecs.systems.PanguFrameSystem
@@ -49,11 +53,13 @@ import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.habitat.PadPlacement
 import com.technomancer.pangu.logic.input.InteractionQueue
 import com.technomancer.pangu.logic.input.InteractionType
+import com.technomancer.pangu.logic.pet.PetWorld
 import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.loc.LocService
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.ui.HandleLabel
 import com.technomancer.pangu.ui.InfoPanel
+import com.technomancer.pangu.ui.PieMenu
 import com.technomancer.pangu.ui.PauseDim
 import com.technomancer.pangu.ui.Toast
 import com.technomancer.pangu.ui.UiBridge
@@ -79,6 +85,7 @@ fun PanguStage() {
     val events = remember { ServiceRegistry.resolve<InteractionQueue>() }
     val scene = remember { ServiceRegistry.resolve<SceneHandles>() }
     val haptics = remember { ServiceRegistry.resolve<Haptics>() }
+    val sfx = remember { ServiceRegistry.resolve<SfxPlayer>() }
     val showDebug = remember { ServiceRegistry.resolve<DebugFlags>().debuggable }
     val input = remember { InputSystem(ServiceRegistry.resolve<InputConfig>()) }
 
@@ -100,6 +107,7 @@ fun PanguStage() {
             lifecycleOwner.lifecycle.removeObserver(session)
             unregisterSystem<PanguFrameSystem>()
             scene.clear()
+            sfx.clear()
             input.stop()
             haptics.device = null
         }
@@ -133,8 +141,10 @@ fun PanguStage() {
         attachments = {
             AttachmentPanel(id = PANEL_INFO) {
                 val screen by ui.screen.collectAsState()
+                val pet by ui.pet.collectAsState()
                 InfoPanel(
                     content = ScreenContent.of(screen),
+                    pet = pet,
                     loc = loc,
                     scale = scale,
                     showDebug = showDebug,
@@ -145,6 +155,17 @@ fun PanguStage() {
             AttachmentPanel(id = PANEL_HANDLE) {
                 val screen by ui.screen.collectAsState()
                 HandleLabel(screen == ScreenId.C02 || screen == ScreenId.C37, loc, scale)
+            }
+            AttachmentPanel(id = PANEL_PIE) {
+                val screen by ui.screen.collectAsState()
+                val pet by ui.pet.collectAsState()
+                PieMenu(
+                    visible = screen == ScreenId.C24,
+                    suggested = pet?.suggested.orEmpty(),
+                    loc = loc,
+                    scale = scale,
+                    ringRadiusPx = uiConfig.pieRadius / uiConfig.metresPerMockupPx,
+                ) { events.push(InteractionType.UiPie, it.ordinal) }
             }
             AttachmentPanel(id = PANEL_TOAST) {
                 val toast by ui.toast.collectAsState()
@@ -175,13 +196,29 @@ fun PanguStage() {
             else -> logic.placePad(placement.defaultPose(head.position.toLogic(), head.rotation.toLogic()))
         }
 
-        // Mesh uploads can wait on the engine, so they run off the main thread; entities must be made on it.
-        val factory = HabitatFactory(MeshFactory())
-        withContext(Dispatchers.Default) { factory.preloadMeshes() }
-        val habitat = factory.create()
+        // Parsing and mesh uploads can wait on the engine, so they run off the main thread;
+        // entities must be made on it.
+        val meshes = MeshFactory()
+        val habitatFactory = HabitatFactory(meshes)
+        val alienFactory = AlienFactory(meshes, AlienFactory.DEFAULT_LOOK)
+        val propFactory = PropFactory(meshes)
+        val alienLoaded = withContext(Dispatchers.Default) {
+            habitatFactory.preloadMeshes()
+            propFactory.preloadMeshes()
+            runCatching { alienFactory.preload(context.assets) }
+                .onFailure { Log.e(TAG, "Could not load the alien model", it) }
+                .isSuccess
+        }
+        val habitat = habitatFactory.create()
         root.addChild(habitat)
         val infoPanel = attachments.entity(PANEL_INFO)?.also { habitat.addChild(it) }
         val handleLabel = attachments.entity(PANEL_HANDLE)?.also { habitat.addChild(it) }
+        val pie = attachments.entity(PANEL_PIE)?.also { habitat.addChild(it) }
+        val rig = if (alienLoaded) alienFactory.create().also { habitat.addChild(it.root) } else null
+        val tray = propFactory.createTray().also { habitat.addChild(it) }
+        val foods = List(PetWorld.FOOD_COUNT) { i -> propFactory.createFood(i).also { habitat.addChild(it) } }
+        sfx.petEmitter = rig?.root
+        sfx.uiEmitter = infoPanel ?: habitat
 
         // Toasts and the pause veil follow the head.
         val camera = AnchorEntity(AnchorTarget.createCameraTarget())
@@ -195,7 +232,13 @@ fun PanguStage() {
             camera.addChild(it)
         }
 
-        scene.presentation = PresentationSystem(root, habitat, infoPanel, handleLabel, uiConfig, placement.habitatScale)
+        scene.presentation = PresentationSystem(
+            root,
+            habitat,
+            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods),
+            uiConfig,
+            placement.habitatScale,
+        )
         Log.i(TAG, "Habitat placed at ${logic.padPose?.position} screen=${logic.screens.current} (head ${head?.position})")
     }
 }
@@ -232,6 +275,7 @@ private const val TAG = "Pangu"
 private const val ROOT = "PanguRoot"
 private const val PANEL_INFO = "panel_info"
 private const val PANEL_HANDLE = "panel_handle"
+private const val PANEL_PIE = "panel_pie"
 private const val PANEL_TOAST = "panel_toast"
 private const val PANEL_PAUSE = "panel_pause"
 private const val HEAD_WAIT_MS = 2000L

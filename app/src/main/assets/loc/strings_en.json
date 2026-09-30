@@ -643,6 +643,62 @@
   {
    "k": "hint.handle",
    "v": "Grab here to move the habitat"
+  },
+  {
+   "k": "suggest.two",
+   "v": "{need} is low. Try {a} or {b}."
+  },
+  {
+   "k": "suggest.one",
+   "v": "{need} is low. Try {a}."
+  },
+  {
+   "k": "toast.soon",
+   "v": "Coming soon"
+  },
+  {
+   "k": "toast.full",
+   "v": "Too full!"
+  },
+  {
+   "k": "mood.joyful",
+   "v": "Joyful"
+  },
+  {
+   "k": "mood.content",
+   "v": "Content"
+  },
+  {
+   "k": "mood.meh",
+   "v": "Meh"
+  },
+  {
+   "k": "mood.sad",
+   "v": "Sad"
+  },
+  {
+   "k": "mood.distressed",
+   "v": "Distressed"
+  },
+  {
+   "k": "food.0",
+   "v": "Fizzberry"
+  },
+  {
+   "k": "food.1",
+   "v": "Honey bun"
+  },
+  {
+   "k": "food.2",
+   "v": "Comet drop"
+  },
+  {
+   "k": "food.3",
+   "v": "Moon milk"
+  },
+  {
+   "k": "food.4",
+   "v": "Crisp leaf"
   }
  ]
 }

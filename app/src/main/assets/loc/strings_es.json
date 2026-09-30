@@ -643,6 +643,62 @@
   {
    "k": "hint.handle",
    "v": "Agarra aquí para mover el hábitat"
+  },
+  {
+   "k": "suggest.two",
+   "v": "{need} está bajo. Prueba {a} o {b}."
+  },
+  {
+   "k": "suggest.one",
+   "v": "{need} está bajo. Prueba {a}."
+  },
+  {
+   "k": "toast.soon",
+   "v": "Muy pronto"
+  },
+  {
+   "k": "toast.full",
+   "v": "¡Está lleno!"
+  },
+  {
+   "k": "mood.joyful",
+   "v": "Feliz"
+  },
+  {
+   "k": "mood.content",
+   "v": "Contento"
+  },
+  {
+   "k": "mood.meh",
+   "v": "Regular"
+  },
+  {
+   "k": "mood.sad",
+   "v": "Triste"
+  },
+  {
+   "k": "mood.distressed",
+   "v": "Angustiado"
+  },
+  {
+   "k": "food.0",
+   "v": "Burbuja"
+  },
+  {
+   "k": "food.1",
+   "v": "Bollo de miel"
+  },
+  {
+   "k": "food.2",
+   "v": "Gota cometa"
+  },
+  {
+   "k": "food.3",
+   "v": "Leche lunar"
+  },
+  {
+   "k": "food.4",
+   "v": "Hoja crujiente"
   }
  ]
 }

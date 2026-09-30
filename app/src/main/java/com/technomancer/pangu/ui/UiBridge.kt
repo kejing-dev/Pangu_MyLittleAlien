@@ -3,15 +3,30 @@ package com.technomancer.pangu.ui
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.loc.Language
+import com.technomancer.pangu.logic.pet.Mood
+import com.technomancer.pangu.logic.pet.Need
+import com.technomancer.pangu.logic.pet.PetAction
+import com.technomancer.pangu.logic.pet.Suggestions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** A toast request: the string key and a serial that changes for every new toast. */
 data class ToastRequest(val key: String, val serial: Int)
 
+/** What the pet panels show. [needs] are whole numbers in Need order (Tidy last). */
+data class PetUi(
+    val name: String,
+    val needs: List<Int>,
+    val mood: Mood,
+    val lowest: Need,
+    val suggested: List<PetAction>,
+    val napMinutes: Int,
+)
+
 /**
  * Carries logic state to the Compose panels. The frame System calls [publishIfChanged] after
- * each tick; flows only emit when a value actually changes, so panels recompose rarely.
+ * each tick; flows only emit when a value actually changes, and pet values refresh at most
+ * [PET_HZ] times a second, so panels recompose rarely.
  */
 class UiBridge {
     private val _screen = MutableStateFlow(ScreenId.C02)
@@ -26,6 +41,11 @@ class UiBridge {
     private val _language = MutableStateFlow(Language.En)
     val language: StateFlow<Language> = _language
 
+    private val _pet = MutableStateFlow<PetUi?>(null)
+    val pet: StateFlow<PetUi?> = _pet
+
+    private var nextPetNanos = 0L
+
     fun publishIfChanged(logic: PanguLogic) {
         _screen.value = logic.screens.current
         _paused.value = logic.isPaused
@@ -33,9 +53,26 @@ class UiBridge {
         if (key != null && _toast.value?.serial != logic.toastSerial) {
             _toast.value = ToastRequest(key, logic.toastSerial)
         }
+        val now = System.nanoTime()
+        if (logic.isPetFlow && now >= nextPetNanos) {
+            nextPetNanos = now + 1_000_000_000L / PET_HZ
+            val pet = logic.pet
+            _pet.value = PetUi(
+                name = logic.petName,
+                needs = Need.entries.map { pet.needs.value(it, pet.config).toInt() },
+                mood = pet.mood(),
+                lowest = Suggestions.lowestNeed(pet.needs, pet.config),
+                suggested = Suggestions.forPet(pet.needs, pet.config),
+                napMinutes = pet.actions.napMinutes(logic.nowMs),
+            )
+        }
     }
 
     fun setLanguage(language: Language) {
         _language.value = language
+    }
+
+    companion object {
+        const val PET_HZ = 4
     }
 }

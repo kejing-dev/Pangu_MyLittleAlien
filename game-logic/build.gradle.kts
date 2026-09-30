@@ -31,3 +31,15 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+// Renders the procedural sound clips into the app's generated assets (not committed).
+val renderAudio by tasks.registering(JavaExec::class) {
+    group = "pangu"
+    description = "Renders procedural audio clips to WAV files for the app."
+    val outDir = rootProject.layout.projectDirectory.dir("app/build/generated/pangu/assets/audio")
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.technomancer.pangu.logic.audio.RenderAudioMain")
+    args(outDir.asFile.absolutePath)
+    inputs.files(sourceSets["main"].runtimeClasspath)
+    outputs.dir(outDir)
+}

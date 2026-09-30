@@ -8,6 +8,7 @@ import com.technomancer.pangu.app.Haptics
 import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
+import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.logic.HapticCue
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.config.InputConfig
@@ -27,13 +28,17 @@ class PanguFrameSystem : System() {
     private val events: InteractionQueue = ServiceRegistry.resolve()
     private val ui: UiBridge = ServiceRegistry.resolve()
     private val haptics: Haptics = ServiceRegistry.resolve()
+    private val sfx: SfxPlayer = ServiceRegistry.resolve()
     private val inputConfig: InputConfig = ServiceRegistry.resolve()
     private val session: SessionController = ServiceRegistry.resolve()
-    private val debugLog: Boolean = ServiceRegistry.resolve<DebugFlags>().debuggable
+    private val debug: DebugFlags = ServiceRegistry.resolve()
     private var nextLogNanos = 0L
+    private var autosaveSec = 0f
 
     override fun update(context: SceneUpdateContext) {
-        val dt = context.deltaTime.coerceIn(0f, MAX_DT)
+        // The SDK can run this System as rarely as once a second when the scene is still, so
+        // only very long gaps are clamped; longer absences go through catch-up instead.
+        val dt = context.deltaTime.coerceIn(0f, MAX_DT) * debug.timeScale
 
         scene.input?.collect(snapshot)
         logic.tick(dt, snapshot, events)
@@ -45,9 +50,15 @@ class PanguFrameSystem : System() {
             HapticCue.Grab -> haptics.play(inputConfig.grab)
             null -> Unit
         }
-        if (logic.consumeSaveRequest()) session.persist()
+        while (true) sfx.play(logic.nextSound() ?: break)
 
-        if (debugLog) {
+        autosaveSec += context.deltaTime
+        if (logic.consumeSaveRequest() || autosaveSec >= AUTOSAVE_SEC) {
+            autosaveSec = 0f
+            session.persist()
+        }
+
+        if (debug.debuggable) {
             val now = java.lang.System.nanoTime()
             if (now >= nextLogNanos) {
                 nextLogNanos = now + LOG_INTERVAL_NANOS
@@ -58,7 +69,8 @@ class PanguFrameSystem : System() {
 
     companion object {
         private const val TAG = "Pangu"
-        private const val MAX_DT = 0.1f
+        private const val MAX_DT = 1.0f
+        private const val AUTOSAVE_SEC = 30f
         private const val LOG_INTERVAL_NANOS = 5_000_000_000L
     }
 }
