@@ -145,7 +145,10 @@ class UiBridge {
     fun publishIfChanged(logic: PanguLogic) {
         _screen.value = logic.screens.current
         _paused.value = logic.isPaused
-        _counters.value = Triple(logic.hatchedCount, logic.dormantCount, logic.wentHomeCount)
+        val c = _counters.value
+        if (c.first != logic.hatchedCount || c.second != logic.dormantCount || c.third != logic.wentHomeCount) {
+            _counters.value = Triple(logic.hatchedCount, logic.dormantCount, logic.wentHomeCount)
+        }
         val key = logic.toastKey
         if (key != null && _toast.value?.serial != logic.toastSerial) {
             _toast.value = ToastRequest(key, logic.toastSerial)

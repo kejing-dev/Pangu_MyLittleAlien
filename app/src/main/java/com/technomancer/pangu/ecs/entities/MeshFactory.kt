@@ -9,6 +9,10 @@ import com.pico.spatial.core.ecs.resource.MeshResource
 import com.pico.spatial.core.ecs.resource.UnlitMaterial
 import com.pico.spatial.core.math.Color4
 import com.pico.spatial.core.math.Vector3
+import com.technomancer.pangu.app.PerfProbe
+import java.util.concurrent.Callable
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import com.technomancer.pangu.ecs.rgb
 import com.technomancer.pangu.logic.art.MeshData
 
@@ -17,9 +21,10 @@ import com.technomancer.pangu.logic.art.MeshData
  * Unlit materials are shared per colour and culling mode. Meshes that carry vertex colours
  * (the baked toon look) pass them to the SDK and use a white material so the colours show.
  */
-class MeshFactory {
+class MeshFactory(private val perf: PerfProbe? = null) {
     private val materials = HashMap<Long, UnlitMaterial>()
-    private val meshCache = HashMap<String, MeshResource>()
+    private val meshCache = ConcurrentHashMap<String, MeshResource>()
+    private val uploader = Executors.newFixedThreadPool(UPLOAD_THREADS) { r -> Thread(r, "PanguMeshUpload").apply { isDaemon = true } }
 
     fun unlit(color: Int, cullFront: Boolean = false): UnlitMaterial =
         materials.getOrPut(color.toLong() or (if (cullFront) 1L shl 32 else 0L)) {
@@ -31,10 +36,20 @@ class MeshFactory {
         }
 
     /** Uploads [data] once per [name]; later calls return the cached resource. Safe off the main thread. */
-    @Synchronized
-    fun mesh(data: MeshData, name: String): MeshResource = meshCache.getOrPut(name) { upload(data, name) }
+    fun mesh(data: MeshData, name: String): MeshResource = meshCache.computeIfAbsent(name) { upload(data, name) }
+
+    /**
+     * Uploads many meshes at once and waits for all of them. Each upload waits for the engine's next
+     * frame, so uploading them side by side costs about one frame instead of one frame each.
+     * Call off the main thread.
+     */
+    fun preload(items: Collection<Pair<String, MeshData>>) {
+        val tasks = items.filter { !meshCache.containsKey(it.first) }.map { (name, data) -> Callable { mesh(data, name) } }
+        uploader.invokeAll(tasks).forEach { it.get() }
+    }
 
     private fun upload(data: MeshData, name: String): MeshResource {
+        val started = System.nanoTime()
         val n = data.vertexCount
         val positions = ArrayList<Vector3>(n)
         val normals = ArrayList<Vector3>(n)
@@ -54,7 +69,11 @@ class MeshFactory {
         } else {
             MeshModel(positions, data.indices.toList(), normals)
         }
-        return MeshResource.createWithMeshModel(model, bounds, name)
+        val built = System.nanoTime()
+        return MeshResource.createWithMeshModel(model, bounds, name).also {
+            perf?.triangles?.put(it, data.triangleCount)
+            perf?.meshUploaded(name, data.vertexCount, (built - started) / 1e6, (System.nanoTime() - built) / 1e6)
+        }
     }
 
     /** A named model entity at [position] in its parent's space. */
@@ -69,4 +88,8 @@ class MeshFactory {
             setName(name)
             components[TransformComponent::class.java]?.setPosition(position)
         }
+
+    private companion object {
+        const val UPLOAD_THREADS = 16
+    }
 }

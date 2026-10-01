@@ -60,7 +60,7 @@ class AlienFactory(private val meshes: MeshFactory) {
         val parts = GlbParser.parse(assets.open(GLB_PATH).use { it.readBytes() })
         val out = HashMap<String, MeshData>()
         fun add(key: String, mesh: MeshData?) {
-            if (mesh != null) out[key] = mesh.also { meshes.mesh(it, key) }
+            if (mesh != null) out[key] = mesh
         }
         add(BODY, parts[AlienParts.BODY]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
         add(STALK, parts[AlienParts.STALK]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
@@ -75,6 +75,7 @@ class AlienFactory(private val meshes: MeshFactory) {
         add(BODY_OUTLINE, parts[AlienParts.BODY]?.let { OutlineHull.build(it, 0.012f) })
         add(FRECKLE, PrimitiveMeshes.disc(FRECKLE_RADIUS, segments = 16))
         add(MOTE, PrimitiveMeshes.octahedron(0.06f))
+        meshes.preload(out.toList())
         baked = out
         tipShapes = AlienParts.TIPS.indices.mapNotNull { i -> out[tipKey(i)]?.let { tipKey(i) to it } }
     }

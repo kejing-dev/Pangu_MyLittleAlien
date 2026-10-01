@@ -62,6 +62,8 @@ class EggPresenter(
         Vec3(cos(a), up, sin(a)).normalized()
     }
     private val inv = 1f / habitatScale
+    private val writes = TransformWrites()
+    private val invVector = Vector3(inv)
     private val seamY = EggMesh.SEAM * EggMesh.HEIGHT
 
     private var shellColor = -1
@@ -79,10 +81,10 @@ class EggPresenter(
         val hatching = flow == FlowState.Hatching
         val shown = sealing || flow == FlowState.Incubation || hatching || flow == FlowState.Dormant
         if (!shown) {
-            rootT?.setScaleVector(Vector3.ZERO)
-            props.drape.transform()?.setScaleVector(Vector3.ZERO)
-            blanketT?.setScaleVector(Vector3.ZERO)
-            beadT.forEach { it.setScaleVector(Vector3.ZERO) }
+            writes.scale(rootT, Vector3.ZERO)
+            writes.scale(props.drape.transform(), Vector3.ZERO)
+            writes.scale(blanketT, Vector3.ZERO)
+            beadT.forEach { writes.scale(it, Vector3.ZERO) }
             return
         }
         val condition = world.condition
@@ -117,7 +119,7 @@ class EggPresenter(
             shownShape = look.shape
             rig.emblems.forEachIndexed { i, e ->
                 e.children().forEach { meshes.tint(it, emblem) }
-                emblemT[i]?.setScaleVector(if (i == look.shape) emblemScale[i] else Vector3.ZERO)
+                writes.scale(emblemT[i], if (i == look.shape) emblemScale[i] else Vector3.ZERO)
             }
         }
 
@@ -132,10 +134,10 @@ class EggPresenter(
         rootT?.apply {
             setPosition(world.eggPosition.toSdk())
             setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), roll).toSdk())
-            setScaleVector(Vector3(world.formScale * inv))
+            writes.scale(this, if (world.formScale >= 1f) invVector else Vector3(world.formScale * inv))
         }
 
-        frostT.forEachIndexed { i, t -> t.setScaleVector(if (condition == EggCondition.Chilly) frostScale[i] else Vector3.ZERO) }
+        frostT.forEachIndexed { i, t -> writes.scale(t, if (condition == EggCondition.Chilly) frostScale[i] else Vector3.ZERO) }
 
         val hatch = world.hatchSec
         val glow = when {
@@ -145,14 +147,14 @@ class EggPresenter(
             else -> -1
         }
         if (glow < 0) {
-            glowT?.setScaleVector(Vector3.ZERO)
+            writes.scale(glowT, Vector3.ZERO)
         } else {
             if (glow != glowColor) {
                 glowColor = glow
                 rig.glow.components[ModelComponent::class.java]?.materials?.set(0, factory.glowMaterial(glow))
             }
             val pulse = 1f + 0.04f * sin(3f * time)
-            glowT?.setScaleVector(Vector3(EggFactory.GLOW_SCALE.x * pulse, EggFactory.GLOW_SCALE.y * pulse, EggFactory.GLOW_SCALE.z * pulse))
+            writes.scale(glowT, Vector3(EggFactory.GLOW_SCALE.x * pulse, EggFactory.GLOW_SCALE.y * pulse, EggFactory.GLOW_SCALE.z * pulse))
         }
 
         // The crack grows a segment per tap and disappears once the seam lights.
@@ -161,10 +163,10 @@ class EggPresenter(
             condition == EggCondition.Ready -> world.egg.crackTaps.coerceAtMost(crackT.size)
             else -> 0
         }
-        crackT.forEachIndexed { i, t -> t.setScaleVector(if (i < cracks) Vector3.ONE else Vector3.ZERO) }
+        crackT.forEachIndexed { i, t -> writes.scale(t, if (i < cracks) Vector3.ONE else Vector3.ZERO) }
 
         val seamOn = condition == EggCondition.Dormant || (hatching && hatch >= PanguLogic.HATCH_SEAM_SEC)
-        seamT?.setScaleVector(if (seamOn) Vector3.ONE else Vector3.ZERO)
+        writes.scale(seamT, if (seamOn) Vector3.ONE else Vector3.ZERO)
 
         // The top cap lifts 5 cm and tips 22° as it opens.
         val lift = if (hatching) ((hatch - PanguLogic.HATCH_LIFT_SEC) / (PanguLogic.HATCH_RISE_SEC - PanguLogic.HATCH_LIFT_SEC)).coerceIn(0f, 1f) else 0f
@@ -186,7 +188,7 @@ class EggPresenter(
     private fun updateSparkles(hatching: Boolean, hatch: Float, tip: Int) {
         val t = if (hatching) hatch - PanguLogic.HATCH_LIFT_SEC else -1f
         if (t < 0f || t > SPARKLE_SEC) {
-            sparkT.forEach { it.setScaleVector(Vector3.ZERO) }
+            sparkT.forEach { writes.scale(it, Vector3.ZERO) }
             return
         }
         if (tip != sparkleColor) {
@@ -198,21 +200,21 @@ class EggPresenter(
             val d = sparkDirs[i]
             val speed = 0.12f + 0.04f * (i % 5)
             tr.setPosition(Vector3(d.x * speed * t, seamY + d.y * speed * t - 0.12f * t * t, d.z * speed * t))
-            tr.setScaleVector(Vector3(s))
+            writes.scale(tr, Vector3(s))
         }
     }
 
     private fun updateMotes(on: Boolean) {
         moteT.forEachIndexed { i, t ->
             if (!on) {
-                t.setScaleVector(Vector3.ZERO)
+                writes.scale(t, Vector3.ZERO)
                 return@forEachIndexed
             }
             val phase = ((time * 0.25f + i / 3f) % 1f)
             val a = i * 2.1f
             t.setPosition(Vector3(0.03f * cos(a), EggMesh.HEIGHT + 0.01f + 0.06f * phase, 0.03f * sin(a)))
             t.setQuaternion(Quat.fromYaw(time + i).toSdk())
-            t.setScaleVector(Vector3(sin(PI.toFloat() * phase)))
+            writes.scale(t, Vector3(sin(PI.toFloat() * phase)))
         }
     }
 
@@ -221,15 +223,15 @@ class EggPresenter(
         val active = flow == FlowState.Incubation && world.sealSec < 0f
         val tucked = active && world.isTucked(logic.nowMs)
         if (tucked) {
-            blanketT?.setScaleVector(Vector3.ZERO)
+            writes.scale(blanketT, Vector3.ZERO)
             drapeT?.apply {
                 setPosition(world.eggPosition.toSdk())
-                setScaleVector(Vector3(inv))
+                writes.scale(this, invVector)
             }
         } else {
-            drapeT?.setScaleVector(Vector3.ZERO)
+            writes.scale(drapeT, Vector3.ZERO)
             blanketT?.apply {
-                setScaleVector(if (active) blanketScale else Vector3.ZERO)
+                writes.scale(this, if (active) blanketScale else Vector3.ZERO)
                 setPosition(world.blanketPosition.toSdk())
             }
         }
@@ -240,7 +242,7 @@ class EggPresenter(
         val r = logic.egg.rituals
         val shown = r.active == EggAction.Sing && r.singPath == MicChoice.MusicBox
         musicBoxT?.apply {
-            setScaleVector(if (shown) Vector3(inv) else Vector3.ZERO)
+            writes.scale(this, if (shown) invVector else Vector3.ZERO)
             setPosition(MUSIC_BOX_AT)
         }
         if (shown) {
@@ -252,7 +254,7 @@ class EggPresenter(
     /** Lights beads on the nest rim for the warmth band, hiding the ones behind the egg as seen from [head]. */
     private fun updateBeads(logic: PanguLogic, condition: EggCondition, head: Vector3?, hidden: Boolean) {
         if (hidden) {
-            beadT.forEach { it.setScaleVector(Vector3.ZERO) }
+            beadT.forEach { writes.scale(it, Vector3.ZERO) }
             return
         }
         val facing = if (head != null) atan2(head.x, head.z) else 0f
@@ -263,7 +265,7 @@ class EggPresenter(
             // Beads spread around the front of the rim; the arc straight behind the egg is skipped.
             val a = facing + (i - (beadT.size - 1) / 2f) * BEAD_STEP
             t.setPosition(Vector3(NEST_RIM * sin(a), BEAD_Y, NEST_RIM * cos(a)))
-            t.setScaleVector(Vector3(inv))
+            writes.scale(t, invVector)
             val color = if (shownIndex < lit) litColor else EggFactory.PAPER
             shownIndex++
             if (beadColors[i] != color) {

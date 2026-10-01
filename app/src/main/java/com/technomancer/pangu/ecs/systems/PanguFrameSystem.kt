@@ -5,6 +5,7 @@ import com.pico.spatial.core.ecs.SceneUpdateContext
 import com.pico.spatial.core.ecs.System
 import com.technomancer.pangu.app.DebugFlags
 import com.technomancer.pangu.app.Haptics
+import com.technomancer.pangu.app.PerfProbe
 import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
@@ -38,12 +39,19 @@ class PanguFrameSystem : System() {
     private val debug: DebugFlags = ServiceRegistry.resolve()
     private val mic: MicService = ServiceRegistry.resolve()
     private val loc: LocService = ServiceRegistry.resolve()
+    private val perf: PerfProbe = ServiceRegistry.resolve()
     private var micOn = false
     private val controllers = ControllerActivity()
     private var nextLogNanos = 0L
     private var autosaveSec = 0f
 
     override fun update(context: SceneUpdateContext) {
+        perf.beginFrame()
+        frame(context)
+        perf.endFrame()
+    }
+
+    private fun frame(context: SceneUpdateContext) {
         // The SDK can run this System as rarely as once a second when the scene is still, so
         // only very long gaps are clamped; longer absences go through catch-up instead.
         val dt = context.deltaTime.coerceIn(0f, MAX_DT) * debug.timeScale
@@ -52,9 +60,13 @@ class PanguFrameSystem : System() {
         controllers.update(snapshot, context.deltaTime)
         haptics.side = controllers.active()
         updateMic()
+        perf.section(PerfProbe.INPUT)
         logic.tick(dt, snapshot, events)
+        perf.section(PerfProbe.LOGIC)
         scene.presentation?.apply(logic, snapshot, dt)
+        perf.section(PerfProbe.PRESENTATION)
         ui.publishIfChanged(logic)
+        perf.section(PerfProbe.UI)
 
         when (logic.consumeHaptic()) {
             HapticCue.UiPress -> haptics.play(inputConfig.uiPress)

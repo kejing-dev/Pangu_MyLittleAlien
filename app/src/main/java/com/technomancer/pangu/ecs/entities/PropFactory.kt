@@ -45,7 +45,7 @@ class PropFactory(private val meshes: MeshFactory) {
 
     /** Uploads the prop meshes; call off the main thread. */
     fun preloadMeshes() {
-        for ((name, data) in parts) meshes.mesh(data, name)
+        meshes.preload(parts.toList())
     }
 
     private fun part(name: String, color: Int, position: Vector3 = Vector3.ZERO) =

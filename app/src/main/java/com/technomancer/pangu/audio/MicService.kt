@@ -9,6 +9,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.technomancer.pangu.app.PerfProbe
 import com.technomancer.pangu.logic.gestures.MicRms
 
 /**
@@ -16,7 +17,7 @@ import com.technomancer.pangu.logic.gestures.MicRms
  * own thread into one preallocated buffer, and the level (RMS, 0..1) is published every 0.1 s.
  * Nothing is stored or sent anywhere.
  */
-class MicService(private val context: Context) {
+class MicService(private val context: Context, private val perf: PerfProbe? = null) {
     @Volatile
     var rms = 0f
         private set
@@ -62,7 +63,11 @@ class MicService(private val context: Context) {
             while (running) {
                 // 1024 samples at 16 kHz is 64 ms, so the level updates more often than every 0.1 s.
                 val n = record.read(buffer, 0, WINDOW)
-                if (n > 0) rms = MicRms.rms(buffer, n)
+                if (n > 0) {
+                    val t = System.nanoTime()
+                    rms = MicRms.rms(buffer, n)
+                    perf?.micWindowMicros = (System.nanoTime() - t) / 1e3
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Microphone read failed", e)

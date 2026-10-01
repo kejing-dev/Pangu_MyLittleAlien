@@ -99,17 +99,11 @@ object AppServices {
         logic.hapticsOn = save.settings.hapticsOn
         logic.debugAssist = debuggable && isEmulator()
         val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
-        when (flow) {
-            FlowState.Hatching -> {
-                // The app closed mid-hatch: the pet is out.
-                logic.flow.flow = FlowState.Pet
-                logic.hatchedCount++
-                restorePet(logic, save, catchUp, clock)
-            }
-            FlowState.Pet, FlowState.WentHome -> restorePet(logic, save, catchUp, clock)
-            FlowState.Incubation, FlowState.Dormant -> restoreEgg(logic, save, catchUp, clock, petConfig.welcomeBackMinMinutes)
-            else -> logic.nowMs = clock.nowUtcMillis()
-        }
+        val perf = PerfProbe(debuggable)
+        perf.milestone("services starting")
+        val awayHours = if (save.lastSimUtcMs > 0L) ((clock.nowUtcMillis() - save.lastSimUtcMs) / 3.6e6).coerceIn(0.0, simConfig.maxCatchUpHours.toDouble()) else 0.0
+        perf.timeCatchUp(awayHours) { restore(flow, logic, save, catchUp, clock, petConfig) }
+
 
         val language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
         val loc = LocService(loadTables(app.assets), language) { Log.w("Pangu", "Missing string $it") }
@@ -136,7 +130,8 @@ object AppServices {
         ServiceRegistry.register(ui)
         ServiceRegistry.register(haptics)
         ServiceRegistry.register(sfx)
-        ServiceRegistry.register(MicService(app))
+        ServiceRegistry.register(MicService(app, perf))
+        ServiceRegistry.register(perf)
         ServiceRegistry.register(session)
         ServiceRegistry.register(SceneHandles())
     }
@@ -173,6 +168,21 @@ object AppServices {
         AwaySummary.of(before, pet.needs.values, crumbsBefore, pet.needs.crumbs, now - lastSeen, pet.config.welcomeBackMinMinutes)
             ?.takeIf { logic.isPetFlow }
             ?.let { logic.showWelcomeBack(it) }
+    }
+
+    /** Restores the pet or the egg for the saved [flow] and replays the time the app was closed. */
+    private fun restore(flow: FlowState, logic: PanguLogic, save: SaveData, catchUp: CatchUp, clock: IClock, petConfig: PetConfig) {
+        when (flow) {
+            FlowState.Hatching -> {
+                // The app closed mid-hatch: the pet is out.
+                logic.flow.flow = FlowState.Pet
+                logic.hatchedCount++
+                restorePet(logic, save, catchUp, clock)
+            }
+            FlowState.Pet, FlowState.WentHome -> restorePet(logic, save, catchUp, clock)
+            FlowState.Incubation, FlowState.Dormant -> restoreEgg(logic, save, catchUp, clock, petConfig.welcomeBackMinMinutes)
+            else -> logic.nowMs = clock.nowUtcMillis()
+        }
     }
 
     /** Loads the egg and replays the time the app was closed. */

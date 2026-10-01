@@ -44,6 +44,7 @@ import com.pico.spatial.ui.platform.LocalHandControllerHaptic
 import com.pico.spatial.ui.platform.LocalPhysicalLengthConverter
 import com.pico.spatial.ui.platform.PhysicalLengthConverter
 import com.technomancer.pangu.app.Haptics
+import com.technomancer.pangu.app.PerfProbe
 import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
@@ -89,6 +90,8 @@ import com.technomancer.pangu.ui.Toast
 import com.technomancer.pangu.ui.UiBridge
 import com.technomancer.pangu.ui.UiScale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -113,6 +116,7 @@ fun PanguStage() {
     val sfx = remember { ServiceRegistry.resolve<SfxPlayer>() }
     val input = remember { InputSystem(ServiceRegistry.resolve<InputConfig>()) }
     val mic = remember { ServiceRegistry.resolve<MicService>() }
+    val perf = remember { ServiceRegistry.resolve<PerfProbe>() }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -293,6 +297,7 @@ fun PanguStage() {
         },
     ) { content, attachments ->
         // Stage-space poses are converted through this root, so it goes into the scene first.
+        perf.milestone("scene setup started")
         val root = Entity().apply { setName(ROOT) }
         content.addEntity(root)
         drag.root = root
@@ -313,20 +318,29 @@ fun PanguStage() {
 
         // Parsing and mesh uploads can wait on the engine, so they run off the main thread;
         // entities must be made on it.
-        val meshes = MeshFactory()
+        val meshes = MeshFactory(perf)
         val habitatFactory = HabitatFactory(meshes)
         val alienFactory = AlienFactory(meshes)
         val propFactory = PropFactory(meshes)
         val eggFactory = EggFactory(meshes)
         val shellColor = logic.catalog.bodyColor(logic.look)
+        perf.milestone("head pose ready")
+        // The four sets upload side by side: each upload waits for an engine frame, so this costs
+        // about as long as the slowest set rather than the sum of them.
         val alienLoaded = withContext(Dispatchers.Default) {
-            habitatFactory.preloadMeshes()
-            propFactory.preloadMeshes()
-            eggFactory.preloadMeshes(shellColor)
-            runCatching { alienFactory.preload(context.assets) }
-                .onFailure { Log.e(TAG, "Could not load the alien model", it) }
-                .isSuccess
+            val alien = async {
+                runCatching { alienFactory.preload(context.assets) }
+                    .onFailure { Log.e(TAG, "Could not load the alien model", it) }
+                    .isSuccess
+            }
+            listOf(
+                async { habitatFactory.preloadMeshes() },
+                async { propFactory.preloadMeshes() },
+                async { eggFactory.preloadMeshes(shellColor) },
+            ).awaitAll()
+            alien.await()
         }
+        perf.milestone("meshes uploaded")
         val habitat = habitatFactory.create()
         root.addChild(habitat)
         val infoPanel = attachments.entity(PANEL_INFO)?.also { habitat.addChild(it) }
@@ -378,6 +392,8 @@ fun PanguStage() {
             meshes,
             petConfig.adultHeight * petConfig.hatchGrowth / AlienParts.MODEL_HEIGHT / placement.habitatScale,
         )
+        perf.root = root
+        perf.coldStartDone()
         Log.i(TAG, "Habitat placed at ${logic.padPose?.position} screen=${logic.screens.current} (head ${head?.position})")
     }
 }

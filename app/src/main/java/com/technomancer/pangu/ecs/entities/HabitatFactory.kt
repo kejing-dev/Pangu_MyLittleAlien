@@ -51,7 +51,7 @@ class HabitatFactory(private val meshes: MeshFactory) {
      * main thread; [create] then only builds entities, which must happen on the main thread.
      */
     fun preloadMeshes() {
-        for ((name, data) in parts) meshes.mesh(data, name)
+        meshes.preload(parts.toList())
     }
 
     private fun part(name: String, color: Int, position: Vector3 = Vector3.ZERO) =

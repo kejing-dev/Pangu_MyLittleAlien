@@ -63,6 +63,7 @@ class PresentationSystem(
     /** Local scale of the pet rig at hatch size (the studio preview uses it too). */
     private val petHatchScale: Float,
 ) {
+    private val writes = TransformWrites()
     private val habitatScaleVector = Vector3(habitatScale)
     /** Panels are children of the habitat but keep their own size, so they undo its scale. */
     private val panelScaleVector = Vector3(1f / habitatScale)
@@ -121,7 +122,7 @@ class PresentationSystem(
             habitatTransform?.apply {
                 setPosition(root.convertPositionFrom(pad.position.toSdk(), null))
                 setQuaternion(root.convertRotationFrom(pad.rotation.toSdk(), null))
-                setScaleVector(habitatScaleVector)
+                writes.scale(this, habitatScaleVector)
             }
         }
 
@@ -130,8 +131,8 @@ class PresentationSystem(
         val glow = placing || logic.isDraggingPad
         if (glow != glowOn) {
             glowOn = glow
-            handleGlow?.setScaleVector(if (glow) Vector3.ONE else Vector3.ZERO)
-            labelTransform?.setScaleVector(if (placing) panelScaleVector else Vector3.ZERO)
+            writes.scale(handleGlow, if (glow) Vector3.ONE else Vector3.ZERO)
+            writes.scale(labelTransform, if (placing) panelScaleVector else Vector3.ZERO)
         }
 
         val petShown = logic.isPetFlow
@@ -141,7 +142,7 @@ class PresentationSystem(
         val ghost = logic.screens.current == ScreenId.C01
         if (ghost != ghostShown) {
             ghostShown = ghost
-            ghostRing?.setScaleVector(if (ghost) Vector3.ONE else Vector3.ZERO)
+            writes.scale(ghostRing, if (ghost) Vector3.ONE else Vector3.ZERO)
         }
 
         val orbBase = when {
@@ -152,7 +153,7 @@ class PresentationSystem(
         val bob = config.orbBobAmplitude / habitatScale * sin(2.0 * PI * config.orbBobHz * time).toFloat()
         val orbHidden = (petShown && logic.pet.stage() == Distress.WentHome) || studio || sealing || ghost ||
             logic.flow.flow == FlowState.Hatching || logic.flow.flow == FlowState.Dormant
-        orbTransform?.setScaleVector(if (orbHidden) Vector3.ZERO else Vector3.ONE)
+        writes.scale(orbTransform, if (orbHidden) Vector3.ZERO else Vector3.ONE)
         orbTransform?.setPosition(Vector3(orbBase.x, orbBase.y + bob, orbBase.z))
 
         applyLook(logic)
@@ -175,7 +176,7 @@ class PresentationSystem(
             if (logic.screens.current == ScreenId.C24 || logic.screens.current == ScreenId.C08) {
                 billboard(pieTransform, Vector3(orbBase.x, orbBase.y, orbBase.z), head)
             } else {
-                pieTransform?.setScaleVector(Vector3.ZERO)
+                writes.scale(pieTransform, Vector3.ZERO)
             }
         }
     }
@@ -184,14 +185,14 @@ class PresentationSystem(
     private fun applyStudio(hidePad: Boolean, studio: Boolean, sealing: Boolean, formScale: Float) {
         if (hidePad != studioShown) {
             studioShown = hidePad
-            padParts.forEachIndexed { i, t -> t.setScaleVector(if (hidePad) Vector3.ZERO else padPartScales[i]) }
+            padParts.forEachIndexed { i, t -> writes.scale(t, if (hidePad) Vector3.ZERO else padPartScales[i]) }
         }
         val p = when {
             studio -> 1f
             sealing -> 1f - formScale
             else -> 0f
         }
-        pedestalTransform?.setScaleVector(Vector3(pedestalScale.x * p, pedestalScale.y * p, pedestalScale.z * p))
+        writes.scale(pedestalTransform, Vector3(pedestalScale.x * p, pedestalScale.y * p, pedestalScale.z * p))
     }
 
     /**
@@ -213,7 +214,7 @@ class PresentationSystem(
         } else {
             meshes.applyLook(rig, body, tip)
         }
-        tipTransforms.forEachIndexed { i, t -> t?.setScaleVector(if (i == look.shape) Vector3.ONE else Vector3.ZERO) }
+        tipTransforms.forEachIndexed { i, t -> writes.scale(t, if (i == look.shape) Vector3.ONE else Vector3.ZERO) }
     }
 
     private fun applyLamp(logic: PanguLogic) {
@@ -229,27 +230,27 @@ class PresentationSystem(
         val pose = logic.preview
         rootT.setPosition(Vector3.ZERO)
         rootT.setQuaternion(Quat.fromYaw(pose.yaw).toSdk())
-        rootT.setScaleVector(Vector3(petHatchScale * fade))
+        writes.scale(rootT, Vector3(petHatchScale * fade))
         petBody?.apply {
-            setScaleVector(Vector3(1f, pose.breathScale, 1f))
+            writes.scale(this, Vector3(1f, pose.breathScale, 1f))
             setQuaternion(Quat.IDENTITY.toSdk())
         }
         petEyes?.apply {
             setPosition(eyeBase)
-            setScaleVector(Vector3(1f, pose.eyeOpen, 1f))
+            writes.scale(this, Vector3(1f, pose.eyeOpen, 1f))
         }
         petAntenna?.apply {
             setPosition(antennaBase)
             setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), pose.antennaAngle).toSdk())
         }
-        tipTransforms.getOrNull(logic.look.shape)?.setScaleVector(Vector3(pose.tipScale))
+        writes.scale(tipTransforms.getOrNull(logic.look.shape), if (pose.tipScale == 1f) Vector3.ONE else Vector3(pose.tipScale))
     }
 
     /** The hatchling rises out of the opened egg during the last part of the hatch. */
     private fun applyHatchling(logic: PanguLogic) {
         val t = logic.egg.hatchSec
         if (t < PanguLogic.HATCH_RISE_SEC) {
-            petRoot?.setScaleVector(Vector3.ZERO)
+            writes.scale(petRoot, Vector3.ZERO)
             return
         }
         applyPet(logic, true)
@@ -269,12 +270,12 @@ class PresentationSystem(
             freckleTransforms.forEachIndexed { i, t ->
                 val f = p.freckles.getOrNull(i)
                 if (!shown || f == null) {
-                    t?.setScaleVector(Vector3.ZERO)
+                    writes.scale(t, Vector3.ZERO)
                 } else {
                     val (at, normal) = frecklePose(f.azimuth, f.height)
                     t?.setPosition((at + normal * 0.01f).toSdk())
                     t?.setQuaternion(Quat.fromTo(Vec3.UP, normal).toSdk())
-                    t?.setScaleVector(Vector3.ONE)
+                    writes.scale(t, Vector3.ONE)
                 }
             }
         }
@@ -291,11 +292,11 @@ class PresentationSystem(
             }
             val phase = (time % 1.0).toFloat()
             moteTransform?.setPosition((AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE + Vec3(0f, 0.25f + 0.5f * phase, 0f)).toSdk())
-            moteTransform?.setScaleVector(Vector3(1f - phase))
+            writes.scale(moteTransform, Vector3(1f - phase))
         } else if (shimmerStep >= 0) {
             shimmerStep = -1
             rig.tipModels.forEach { meshes.tint(it, tip) }
-            moteTransform?.setScaleVector(Vector3.ZERO)
+            writes.scale(moteTransform, Vector3.ZERO)
         }
     }
 
@@ -313,7 +314,7 @@ class PresentationSystem(
     private fun applyPet(logic: PanguLogic, shown: Boolean) {
         val rootT = petRoot ?: return
         if (!shown) {
-            rootT.setScaleVector(Vector3.ZERO)
+            writes.scale(rootT, Vector3.ZERO)
             return
         }
         val body = logic.pet.body
@@ -322,17 +323,17 @@ class PresentationSystem(
         val bathBob = if (inTub) 0.035f + 0.004f * sin(4.0 * time).toFloat() else 0f
         rootT.setPosition(Vector3(body.position.x, body.position.y + body.hopHeight + body.lift / habitatScale + bathBob, body.position.z))
         rootT.setQuaternion(Quat.fromYaw(body.yaw + body.spin).toSdk())
-        rootT.setScaleVector(Vector3(s))
+        writes.scale(rootT, Vector3(s))
         petBody?.apply {
             val squash = body.squash.coerceAtLeast(0.5f)
-            setScaleVector(Vector3(1f / squash, body.breathScale * squash, 1f / squash))
+            writes.scale(this, Vector3(1f / squash, body.breathScale * squash, 1f / squash))
             val roll = Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.roll)
             val tilt = Quat.fromAxisAngle(Vec3(1f, 0f, 0f), -body.pitch)
             setQuaternion((roll * tilt).toSdk())
         }
         petEyes?.apply {
             setPosition(eyeBase)
-            setScaleVector(Vector3(1f, body.eyeOpen, 1f))
+            writes.scale(this, Vector3(1f, body.eyeOpen, 1f))
         }
         petAntenna?.apply {
             setPosition(antennaBase)
@@ -345,36 +346,36 @@ class PresentationSystem(
 
     private fun applyProps(pet: PetWorld, shown: Boolean) {
         val trayOut = shown && pet.trayOut
-        trayTransform?.setScaleVector(if (trayOut) TRAY_SCALE else Vector3.ZERO)
+        writes.scale(trayTransform, if (trayOut) TRAY_SCALE else Vector3.ZERO)
         pet.foods.forEachIndexed { i, food ->
             val t = foodTransforms.getOrNull(i) ?: return@forEachIndexed
             if (!trayOut || food.eaten) {
-                t.setScaleVector(Vector3.ZERO)
+                writes.scale(t, Vector3.ZERO)
             } else {
-                t.setScaleVector(Vector3.ONE)
+                writes.scale(t, Vector3.ONE)
                 t.setPosition(food.position.toSdk())
             }
         }
 
         val tubOut = shown && pet.tubOut
-        tubTransform?.setScaleVector(if (tubOut) Vector3.ONE else Vector3.ZERO)
-        bubbleTransforms.forEachIndexed { i, t ->
+        writes.scale(tubTransform, if (tubOut) Vector3.ONE else Vector3.ZERO)
+        if (tubOut) bubbleTransforms.forEachIndexed { i, t ->
             val phase = time * 1.3 + i * 1.7
             val r = 0.05f * ((i % 3) + 1) / 3f
             t.setPosition(Vector3(r * sin(phase).toFloat(), 0.07f + 0.02f * sin(phase * 1.9).toFloat(), r * sin(phase + 1.3).toFloat()))
         }
 
         val ballOut = shown && pet.ballOut
-        ballTransform?.setScaleVector(if (ballOut) Vector3.ONE else Vector3.ZERO)
+        writes.scale(ballTransform, if (ballOut) Vector3.ONE else Vector3.ZERO)
         if (ballOut) ballTransform?.setPosition(pet.ball.position.toSdk())
 
         val pulse = if (pet.sweepInvite) 1f + 0.25f * sin(6.0 * time).toFloat() else 1f
         crumbTransforms.forEachIndexed { i, t ->
             val p = pet.crumbs.positions.getOrNull(i)
             if (!shown || p == null) {
-                t.setScaleVector(Vector3.ZERO)
+                writes.scale(t, Vector3.ZERO)
             } else {
-                t.setScaleVector(Vector3(pulse))
+                writes.scale(t, Vector3(pulse))
                 t.setPosition(Vector3(p.x, 0.012f + 0.003f * sin(2.0 * time + i).toFloat(), p.z))
                 t.setQuaternion(Quat.fromYaw((time * 0.8 + i).toFloat()).toSdk())
             }
@@ -387,16 +388,16 @@ class PresentationSystem(
         val body = logic.pet.body
         val height = AlienParts.MODEL_HEIGHT * logic.pet.localScale(logic.nowMs) * body.sizeFactor
         if (stage == Distress.Homesick) {
-            skyRingTransform?.setScaleVector(Vector3.ONE)
+            writes.scale(skyRingTransform, Vector3.ONE)
             skyRingTransform?.setPosition(Vector3(body.position.x, height * (1f + RING_GAP), body.position.z))
         } else {
-            skyRingTransform?.setScaleVector(Vector3.ZERO)
+            writes.scale(skyRingTransform, Vector3.ZERO)
         }
         if (stage == Distress.WentHome) {
-            beamTransform?.setScaleVector(Vector3.ONE)
+            writes.scale(beamTransform, Vector3.ONE)
             beamTransform?.setPosition(Vector3(body.position.x, height * (1f + BEAM_GAP), body.position.z))
         } else {
-            beamTransform?.setScaleVector(Vector3.ZERO)
+            writes.scale(beamTransform, Vector3.ZERO)
         }
     }
 
@@ -404,7 +405,7 @@ class PresentationSystem(
     private fun billboard(transform: TransformComponent?, offset: Vector3, head: Vector3?) {
         transform ?: return
         transform.setPosition(offset)
-        transform.setScaleVector(panelScaleVector)
+        writes.scale(transform, panelScaleVector)
         if (head != null) transform.setQuaternion(Quat.fromYaw(atan2(head.x - offset.x, head.z - offset.z)).toSdk())
     }
 

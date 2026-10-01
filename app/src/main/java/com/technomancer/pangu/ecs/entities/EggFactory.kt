@@ -100,11 +100,16 @@ class EggFactory(private val meshes: MeshFactory) {
 
     /** Uploads the fixed meshes and the shell for [bodyColor]; call off the main thread. */
     fun preloadMeshes(bodyColor: Int) {
-        for ((name, data) in parts) meshes.mesh(data, name)
         val halves = EggMesh.build(bodyColor)
         outlines = OutlineHull.build(halves.top, OUTLINE) to OutlineHull.build(halves.bottom, OUTLINE)
-        meshes.mesh(outlines!!.first, TOP_OUTLINE)
-        meshes.mesh(outlines!!.second, BOTTOM_OUTLINE)
+        meshes.preload(
+            parts.toList() + listOf(
+                TOP_OUTLINE to outlines!!.first,
+                BOTTOM_OUTLINE to outlines!!.second,
+                shellKey(TOP, bodyColor) to halves.top,
+                shellKey(BOTTOM, bodyColor) to halves.bottom,
+            ),
+        )
         ready[bodyColor] = meshes.mesh(halves.top, shellKey(TOP, bodyColor)) to meshes.mesh(halves.bottom, shellKey(BOTTOM, bodyColor))
     }
 
@@ -203,8 +208,10 @@ class EggFactory(private val meshes: MeshFactory) {
         return EggRig(root, bottom, topPivot, top, speckles, emblems, frost, crack, seam, glow, motes, sparkles)
     }
 
+    /** Every speckle and frost dot shares the one disc mesh; each entity gets its own name. */
     private fun markEntity(name: String, m: ShellMark, color: Int): Entity =
-        meshes.model(name, parts.getValue(MARK), color).apply {
+        meshes.model(MARK, parts.getValue(MARK), color).apply {
+            setName(name)
             transform()?.apply {
                 setPosition((m.at.position + m.at.normal * 0.0006f).toSdk())
                 setQuaternion((Quat.fromTo(Vec3.UP, m.at.normal) * Quat.fromYaw(m.turn)).toSdk())
