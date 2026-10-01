@@ -14,7 +14,7 @@ import com.pico.spatial.core.ecs.resource.ShaderGraphMaterial
 object ToonMaterial {
     private const val BUNDLE = "asset://editor-asset.bundle"
     private const val MATERIAL_PATH = "Pangu/Root/PanguToon"
-    private val TOON_PARTS = listOf("Pet_Body", "Pet_Stalk", "Pet_Tip")
+    private val TOON_PARTS = listOf("Pet_Body", "Pet_Stalk") + (0..5).map { "Pet_Tip$it" }
 
     fun tryApply(petRoot: Entity) {
         val material = try {

@@ -1,34 +1,52 @@
 package com.technomancer.pangu.logic
 
 import com.technomancer.pangu.logic.audio.Sfx
+import com.technomancer.pangu.logic.config.IncubationConfig
+import com.technomancer.pangu.logic.config.LookConfig
 import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.config.UiConfig
+import com.technomancer.pangu.logic.creation.KeeperIds
+import com.technomancer.pangu.logic.creation.LookCatalog
+import com.technomancer.pangu.logic.creation.NameWheels
+import com.technomancer.pangu.logic.creation.PetLook
+import com.technomancer.pangu.logic.creation.PreviewPose
+import com.technomancer.pangu.logic.flow.FlowMachine
+import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenEffect
 import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.flow.ScreenMachine
 import com.technomancer.pangu.logic.habitat.PadPlacement
 import com.technomancer.pangu.logic.habitat.PadPose
+import com.technomancer.pangu.logic.incubation.CapResult
+import com.technomancer.pangu.logic.incubation.EggAction
+import com.technomancer.pangu.logic.incubation.EggAway
+import com.technomancer.pangu.logic.incubation.EggCondition
+import com.technomancer.pangu.logic.incubation.EggEvents
+import com.technomancer.pangu.logic.incubation.EggSuggestions
+import com.technomancer.pangu.logic.incubation.EggWorld
 import com.technomancer.pangu.logic.input.InputSnapshot
 import com.technomancer.pangu.logic.input.InteractionEvent
 import com.technomancer.pangu.logic.input.InteractionQueue
 import com.technomancer.pangu.logic.input.InteractionType
+import com.technomancer.pangu.logic.input.LookPick
 import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
-import com.technomancer.pangu.logic.pet.NeedsSim
 import com.technomancer.pangu.logic.pet.AwaySummary
 import com.technomancer.pangu.logic.pet.Distress
+import com.technomancer.pangu.logic.pet.NeedsSim
 import com.technomancer.pangu.logic.pet.PetAction
 import com.technomancer.pangu.logic.pet.PetActivity
 import com.technomancer.pangu.logic.pet.PetEvents
 import com.technomancer.pangu.logic.pet.PetWorld
+import com.technomancer.pangu.logic.sim.CatchUp
 import com.technomancer.pangu.logic.time.FixedClock
 import com.technomancer.pangu.logic.time.IClock
 import com.technomancer.pangu.logic.time.IRandom
 import com.technomancer.pangu.logic.time.XorShift32
 
 /** Controller haptic cues the logic asks the app to play. */
-enum class HapticCue { UiPress, Grab }
+enum class HapticCue { UiPress, Grab, Heartbeat, Completion, Crack }
 
 /**
  * Game logic facade, advanced once per frame by the frame System.
@@ -37,12 +55,16 @@ enum class HapticCue { UiPress, Grab }
 class PanguLogic(
     private val placement: PadPlacement = PadPlacement(),
     startScreen: ScreenId = ScreenId.C02,
-    afterPlacement: ScreenId = ScreenId.C23,
+    afterPlacement: ScreenId = ScreenId.C03,
     petConfig: PetConfig = PetConfig(),
     private val uiConfig: UiConfig = UiConfig(),
     private val clock: IClock = FixedClock(),
-    random: IRandom = XorShift32(1u),
-) : PetEvents {
+    private val random: IRandom = XorShift32(1u),
+    lookConfig: LookConfig = LookConfig(),
+    incubationConfig: IncubationConfig = IncubationConfig(),
+    /** Debug: placing the pad on first launch skips creation and hatches the default pet. */
+    private val skipToPet: Boolean = false,
+) : PetEvents, EggEvents {
     /** Frames advanced while not paused. */
     var tickCount: Long = 0L
         private set
@@ -59,6 +81,13 @@ class PanguLogic(
         private set
 
     val screens = ScreenMachine(startScreen, afterPlacement)
+    val catalog = LookCatalog(lookConfig)
+    val wheels = NameWheels(lookConfig)
+    val flow = FlowMachine(screens, catalog.default())
+    val preview = PreviewPose(lookConfig, random)
+
+    /** Private ids for the spark roll; the app loads or makes them at start. */
+    var keeperIds = KeeperIds(0, 0)
 
     /** Pad pose in Stage space; null until the app has placed the habitat. */
     var padPose: PadPose? = null
@@ -75,20 +104,30 @@ class PanguLogic(
         private set
 
     val pet = PetWorld(petConfig, random, PAD_RADIUS, this, placement.habitatScale)
+    val egg = EggWorld(incubationConfig, this, placement.habitatScale)
     private val needsSim = NeedsSim(petConfig)
     private var pieIdleSec = 0f
 
-    /** Pet name; the name wheels arrive with creation. */
-    var petName: String = "Bobabo"
+    /** The pet's name, built from the look's syllables. */
+    val petName: String get() = wheels.name(flow.look)
+
+    val look: PetLook get() = flow.look
 
     private var saveRequested = false
     private var haptic: HapticCue? = null
     private val sounds = ArrayDeque<Sfx>()
 
     val isPetFlow: Boolean
+        get() = flow.flow == FlowState.Pet || flow.flow == FlowState.WentHome
+
+    /** Egg in the habitat: incubating, hatching or dormant. */
+    val isEggFlow: Boolean
+        get() = flow.flow == FlowState.Incubation || flow.flow == FlowState.Hatching || flow.flow == FlowState.Dormant
+
+    /** The studio is open: the pad is hidden and the preview stands on the pedestal. */
+    val isStudio: Boolean
         get() = when (screens.persistentScreen) {
-            ScreenId.C23, ScreenId.C24, ScreenId.C25, ScreenId.C26, ScreenId.C27, ScreenId.C28, ScreenId.C29,
-            ScreenId.C30, ScreenId.C31, ScreenId.C32, ScreenId.C33, ScreenId.C35 -> true
+            ScreenId.C03, ScreenId.C04, ScreenId.C05 -> true
             else -> false
         }
 
@@ -97,13 +136,19 @@ class PanguLogic(
     var dormantCount = 0
     var wentHomeCount = 0
 
-    /** What changed while away, shown on C35. */
+    /** What changed while away, shown on C35: for the pet, or for the egg. */
     var welcome: AwaySummary? = null
+        private set
+    var eggWelcome: EggAway? = null
+        private set
+
+    /** The action named on C16 ("That's enough <action> today"). */
+    var cappedAction: EggAction = EggAction.Warm
         private set
 
     /** The dance loop that should be playing from the pet, or null. */
     val danceMusic: Sfx?
-        get() = if (pet.actions.activity == PetActivity.Dancing) {
+        get() = if (isPetFlow && pet.actions.activity == PetActivity.Dancing) {
             if (pet.body.danceSpins) Sfx.DanceSpin else Sfx.DanceWiggle
         } else {
             null
@@ -114,10 +159,14 @@ class PanguLogic(
         if (paused) {
             // A bath or dance past halfway finishes with its full gain; otherwise it is cancelled.
             val activity = pet.actions.activity
-            if (activity == PetActivity.Cleaning || activity == PetActivity.Dancing) {
+            if (isPetFlow && (activity == PetActivity.Cleaning || activity == PetActivity.Dancing)) {
                 pet.actions.finishOrCancelOnPause(pet.needs)
                 pet.endActivity()
                 screens.show(ScreenId.C23)
+            }
+            if (egg.eggHeld) {
+                egg.releaseEgg()
+                screens.show(eggHomeScreen())
             }
             screens.pause()
         } else {
@@ -125,19 +174,54 @@ class PanguLogic(
         }
     }
 
-    /** Re-shows the Mopey or Homesick card for a pet loaded in that state (they are not blocking, so they come back on relaunch). */
-    fun announceDistress() {
-        if (!isPetFlow) return
-        when (pet.stage()) {
-            Distress.Mopey -> screens.show(ScreenId.C31)
-            Distress.Homesick -> screens.show(ScreenId.C32)
-            else -> Unit
+    /** Re-shows a card for a pet or egg loaded in that state (they are not blocking, so they come back on relaunch). */
+    fun announceState() {
+        if (isPetFlow) {
+            when (pet.stage()) {
+                Distress.Mopey -> screens.show(ScreenId.C31)
+                Distress.Homesick -> screens.show(ScreenId.C32)
+                else -> Unit
+            }
+        } else if (flow.flow == FlowState.Incubation) {
+            screens.show(eggHomeScreen())
         }
     }
 
-    /** Shows the Welcome back screen with what changed while the player was away. */
+    /** Shows the Welcome back screen with what changed for the pet while the player was away. */
     fun showWelcomeBack(summary: AwaySummary) {
         welcome = summary
+        eggWelcome = null
+        screens.show(ScreenId.C35)
+    }
+
+    /**
+     * Replays egg time from [fromMs] to [toMs]. An egg that went quiet shows the Dormant card;
+     * otherwise Welcome back after [welcomeMinMinutes] away, or the card for its condition.
+     */
+    fun catchUpEgg(catchUp: CatchUp, fromMs: Long, toMs: Long, welcomeMinMinutes: Float) {
+        if (flow.flow != FlowState.Incubation) return
+        val before = egg.sim.band(egg.egg.warmth)
+        catchUp.egg(egg.egg, egg.sim, egg.ledger, fromMs, toMs)
+        nowMs = toMs
+        egg.syncCondition(toMs)
+        if (egg.egg.dormant) {
+            dormantCount++
+            flow.goDormant()
+            saveRequested = true
+            return
+        }
+        val minutes = (toMs - fromMs) / 60_000L
+        if (minutes >= welcomeMinMinutes) {
+            showEggWelcomeBack(EggAway(before, egg.sim.band(egg.egg.warmth), egg.egg.lampHoursLeft(toMs), minutes))
+        } else {
+            announceState()
+        }
+    }
+
+    /** Shows the egg's Welcome back screen. */
+    fun showEggWelcomeBack(summary: EggAway) {
+        eggWelcome = summary
+        welcome = null
         screens.show(ScreenId.C35)
     }
 
@@ -159,8 +243,33 @@ class PanguLogic(
         tickCount++
         elapsedSec += dt
         nowMs += (dt * 1000).toLong()
-        events.drain { handle(it, input) }
-        if (isPetFlow && padPose != null) updatePet(dt, input)
+        events.drain { handle(it, input, dt) }
+        if (padPose == null) return
+        when {
+            isStudio -> preview.update(dt)
+            isEggFlow -> updateEgg(dt, input)
+            isPetFlow -> updatePet(dt, input)
+        }
+        if (screens.current == ScreenId.C24 || screens.current == ScreenId.C08) {
+            pieIdleSec += dt
+            if (pieIdleSec >= uiConfig.pieIdleCloseSec) closePie()
+        }
+    }
+
+    private fun updateEgg(dt: Float, input: InputSnapshot) {
+        // The preview keeps breathing while it shrinks away during the seal.
+        if (egg.sealSec >= 0f) preview.update(dt)
+        val before = egg.hatchSec
+        egg.update(dt, nowMs, clock.localDay(nowMs))
+        val after = egg.hatchSec
+        if (flow.flow == FlowState.Hatching && after >= 0f) {
+            if (before < HATCH_LIFT_SEC && after >= HATCH_LIFT_SEC) sounds += Sfx.Fanfare
+            if (before < HATCH_RISE_SEC && after >= HATCH_RISE_SEC) pet.body.kickAntenna(HATCH_BOING)
+            if (after >= HATCH_RISE_SEC) {
+                val head = if (input.headValid) toPadLocal(input.headPosition) else null
+                pet.body.update(dt, PetActivity.Idle, head)
+            }
+        }
     }
 
     private fun updatePet(dt: Float, input: InputSnapshot) {
@@ -174,14 +283,10 @@ class PanguLogic(
             motionBuffer += if (p.valid) p.position else null
         }
         pet.update(dt, nowMs, needsSim.isNight(clock.localHour(nowMs)), head, pokeBuffer, motionBuffer)
-        if (pet.stage() == Distress.WentHome && pet.body.departed && screens.current != ScreenId.C33) {
+        if (pet.stage() == Distress.WentHome && pet.body.departed && flow.flow != FlowState.WentHome) {
             wentHomeCount++
             saveRequested = true
-            screens.show(ScreenId.C33)
-        }
-        if (screens.current == ScreenId.C24) {
-            pieIdleSec += dt
-            if (pieIdleSec >= uiConfig.pieIdleCloseSec) screens.show(ScreenId.C23)
+            flow.wentHome()
         }
     }
 
@@ -191,71 +296,14 @@ class PanguLogic(
     /** Recent ball drag moves (pad-local delta, time) used to work out the throw velocity. */
     private val ballMoves = ArrayDeque<Pair<Vec3, Long>>()
 
-    private fun handle(e: InteractionEvent, input: InputSnapshot) {
+    private fun handle(e: InteractionEvent, input: InputSnapshot, dt: Float) {
         when (e.type) {
-            InteractionType.DragStart -> when {
-                e.target == TargetId.PAD_HANDLE && screens.isPlacingPad -> {
-                    isDraggingPad = true
-                    haptic = HapticCue.Grab
-                }
-                TargetId.foodIndex(e.target) >= 0 -> {
-                    pet.grabFood(TargetId.foodIndex(e.target))
-                    haptic = HapticCue.Grab
-                }
-                e.target == TargetId.BALL -> {
-                    pet.grabBall()
-                    ballMoves.clear()
-                    haptic = HapticCue.Grab
-                }
-            }
-            InteractionType.DragMove -> when {
-                e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
-                    val pad = padPose ?: return
-                    val head = if (input.headValid) input.headPosition else pad.position
-                    padPose = placement.drag(pad, e.delta, head)
-                }
-                TargetId.foodIndex(e.target) >= 0 -> pet.moveFood(TargetId.foodIndex(e.target), toPadLocalDirection(e.delta))
-                e.target == TargetId.BALL -> {
-                    val d = toPadLocalDirection(e.delta)
-                    pet.moveBall(d)
-                    ballMoves.addLast(d to e.timeNanos)
-                    while (ballMoves.size > THROW_SAMPLES) ballMoves.removeFirst()
-                }
-            }
-            InteractionType.DragEnd -> when {
-                e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
-                    isDraggingPad = false
-                    saveRequested = true
-                }
-                TargetId.foodIndex(e.target) >= 0 -> pet.releaseFood(TargetId.foodIndex(e.target))
-                e.target == TargetId.BALL -> pet.throwBall(throwVelocity(e.timeNanos))
-            }
+            InteractionType.DragStart -> onDragStart(e.target)
+            InteractionType.DragMove -> onDragMove(e, input, dt)
+            InteractionType.DragEnd -> onDragEnd(e)
             InteractionType.Tap -> onTap(e.target)
-            InteractionType.UiPrimary -> {
-                haptic = HapticCue.UiPress
-                sounds += Sfx.UiConfirm
-                when (screens.current) {
-                    ScreenId.C31, ScreenId.C32 -> openPie()
-                    ScreenId.C33 -> {
-                        pet.respawn(nowMs)
-                        hatchedCount++
-                        saveRequested = true
-                        screens.show(ScreenId.C23)
-                    }
-                    ScreenId.C35 -> {
-                        welcome = null
-                        sounds += Sfx.Happy
-                        screens.show(ScreenId.C23)
-                    }
-                    else -> Unit
-                }
-                if (screens.primary() == ScreenEffect.ConfirmPad) {
-                    isDraggingPad = false
-                    saveRequested = true
-                    if (isPetFlow && pet.hatchMs == 0L) pet.hatchMs = nowMs
-                }
-            }
-            InteractionType.UiSecondary -> haptic = HapticCue.UiPress
+            InteractionType.UiPrimary -> onPrimary()
+            InteractionType.UiSecondary -> onSecondary()
             InteractionType.UiRecenter -> {
                 haptic = HapticCue.UiPress
                 padPose = if (input.headValid) {
@@ -265,34 +313,223 @@ class PanguLogic(
                 }
                 screens.recenter()
             }
-            InteractionType.UiPie -> choose(PetAction.entries.getOrNull(e.target))
+            InteractionType.UiPie -> if (screens.current == ScreenId.C08) {
+                chooseEgg(EggAction.entries.getOrNull(e.target))
+            } else {
+                choose(PetAction.entries.getOrNull(e.target))
+            }
+            InteractionType.UiLook -> pickLook(LookPick.row(e.target), LookPick.index(e.target))
+            InteractionType.UiWheel -> if (screens.current == ScreenId.C04) {
+                flow.look = wheels.cycle(flow.look, e.target.coerceIn(0, 2))
+                haptic = HapticCue.UiPress
+                sounds += Sfx.UiTick
+            }
         }
+    }
+
+    private fun onDragStart(target: Int) {
+        when {
+            target == TargetId.PAD_HANDLE && screens.isPlacingPad -> {
+                isDraggingPad = true
+                haptic = HapticCue.Grab
+            }
+            target == TargetId.EGG && flow.flow == FlowState.Incubation -> if (egg.grabEgg()) {
+                haptic = HapticCue.Grab
+                if (screens.current != ScreenId.C34) screens.show(ScreenId.C09)
+            }
+            target == TargetId.BLANKET && flow.flow == FlowState.Incubation -> if (egg.grabBlanket(nowMs)) haptic = HapticCue.Grab
+            target == TargetId.PET_BODY && isStudio -> Unit
+            !isPetFlow -> Unit
+            TargetId.foodIndex(target) >= 0 -> {
+                pet.grabFood(TargetId.foodIndex(target))
+                haptic = HapticCue.Grab
+            }
+            target == TargetId.BALL -> {
+                pet.grabBall()
+                ballMoves.clear()
+                haptic = HapticCue.Grab
+            }
+        }
+    }
+
+    private fun onDragMove(e: InteractionEvent, input: InputSnapshot, dt: Float) {
+        when {
+            e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
+                val pad = padPose ?: return
+                val head = if (input.headValid) input.headPosition else pad.position
+                padPose = placement.drag(pad, e.delta, head)
+            }
+            e.target == TargetId.EGG -> egg.moveEgg(toPadLocalDirection(e.delta))
+            e.target == TargetId.BLANKET -> egg.moveBlanket(toPadLocalDirection(e.delta))
+            e.target == TargetId.PET_BODY && isStudio -> preview.spin(toPadLocalDirection(e.delta).x * placement.habitatScale, dt)
+            !isPetFlow -> Unit
+            TargetId.foodIndex(e.target) >= 0 -> pet.moveFood(TargetId.foodIndex(e.target), toPadLocalDirection(e.delta))
+            e.target == TargetId.BALL -> {
+                val d = toPadLocalDirection(e.delta)
+                pet.moveBall(d)
+                ballMoves.addLast(d to e.timeNanos)
+                while (ballMoves.size > THROW_SAMPLES) ballMoves.removeFirst()
+            }
+        }
+    }
+
+    private fun onDragEnd(e: InteractionEvent) {
+        when {
+            e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
+                isDraggingPad = false
+                saveRequested = true
+            }
+            e.target == TargetId.EGG && egg.eggHeld -> {
+                egg.releaseEgg()
+                saveRequested = true
+                if (screens.current == ScreenId.C09) screens.show(eggHomeScreen())
+            }
+            e.target == TargetId.BLANKET && egg.blanketHeld -> if (egg.releaseBlanket(nowMs, clock.localDay(nowMs))) saveRequested = true
+            e.target == TargetId.PET_BODY && isStudio -> preview.endSpin()
+            !isPetFlow -> Unit
+            TargetId.foodIndex(e.target) >= 0 -> pet.releaseFood(TargetId.foodIndex(e.target))
+            e.target == TargetId.BALL -> pet.throwBall(throwVelocity(e.timeNanos))
+        }
+    }
+
+    private fun onPrimary() {
+        haptic = HapticCue.UiPress
+        sounds += Sfx.UiConfirm
+        when (screens.current) {
+            ScreenId.C01 -> flow.continueFromLanguage()
+            ScreenId.C03 -> flow.toName()
+            ScreenId.C04 -> flow.toConfirm()
+            ScreenId.C05 -> setEgg()
+            ScreenId.C10, ScreenId.C16 -> screens.show(eggHomeScreen())
+            ScreenId.C17, ScreenId.C18 -> {
+                egg.lightLamp(nowMs)
+                showToast("toast.lamp")
+                saveRequested = true
+                screens.show(ScreenId.C07)
+            }
+            ScreenId.C19, ScreenId.C33 -> {
+                flow.startNewEgg()
+                saveRequested = true
+            }
+            ScreenId.C31, ScreenId.C32 -> openPie()
+            ScreenId.C35 -> {
+                if (welcome != null) {
+                    sounds += Sfx.Happy
+                    screens.show(ScreenId.C23)
+                } else {
+                    screens.show(eggHomeScreen())
+                }
+                welcome = null
+                eggWelcome = null
+            }
+            else -> Unit
+        }
+        if (screens.primary() == ScreenEffect.ConfirmPad) {
+            isDraggingPad = false
+            saveRequested = true
+            val first = flow.flow == FlowState.Onboarding
+            flow.padConfirmed()
+            if (first && skipToPet) {
+                flow.flow = FlowState.Pet
+                pet.hatchNew(nowMs)
+                screens.show(ScreenId.C23)
+            }
+        }
+    }
+
+    private fun onSecondary() {
+        haptic = HapticCue.UiPress
+        sounds += Sfx.UiTick
+        when (screens.current) {
+            ScreenId.C03 -> {
+                val old = flow.look
+                flow.look = catalog.randomize(random, wheels)
+                if (flow.look.shape != old.shape) preview.morph()
+            }
+            ScreenId.C04 -> flow.backToLook()
+            ScreenId.C05 -> flow.backToName()
+            else -> Unit
+        }
+    }
+
+    private fun pickLook(row: Int, index: Int) {
+        if (screens.current != ScreenId.C03) return
+        haptic = HapticCue.UiPress
+        sounds += Sfx.UiTick
+        val look = flow.look
+        flow.look = when (row) {
+            LookPick.BODY -> look.copy(body = index.coerceIn(0, catalog.swatchCount - 1))
+            LookPick.TIP -> look.copy(tip = index.coerceIn(0, catalog.swatchCount - 1))
+            else -> look.copy(shape = index.coerceIn(0, LookCatalog.SHAPES.size - 1))
+        }
+        if (flow.look.shape != look.shape) preview.morph()
+    }
+
+    /** C05 Set egg: the egg is made with a fresh spark value and glides into the nest. */
+    private fun setEgg() {
+        val spark = flow.setEgg(nowMs, keeperIds)
+        egg.setEgg(nowMs, spark)
+        egg.startSeal()
+        sounds += Sfx.Happy
+        saveRequested = true
     }
 
     private fun onTap(target: Int) {
         when (target) {
             TargetId.CARE_ORB -> {
                 sounds += Sfx.UiTick
-                if (!isPetFlow) {
-                    showToast("toast.orb")
-                    return
-                }
-                when (screens.current) {
-                    ScreenId.C23, ScreenId.C31, ScreenId.C32 -> openPie()
-                    ScreenId.C33 -> Unit
-                    else -> backToNeeds()
+                when {
+                    isPetFlow -> when (screens.current) {
+                        ScreenId.C23, ScreenId.C31, ScreenId.C32 -> openPie()
+                        ScreenId.C33 -> Unit
+                        else -> backToNeeds()
+                    }
+                    flow.flow == FlowState.Incubation -> when (screens.current) {
+                        ScreenId.C07, ScreenId.C17, ScreenId.C18, ScreenId.C20 -> openEggPie()
+                        ScreenId.C06, ScreenId.C09 -> Unit
+                        else -> screens.show(eggHomeScreen())
+                    }
+                    else -> showToast("toast.orb")
                 }
             }
-            TargetId.PET_TIP -> pet.boop(nowMs)
-            in TargetId.CRUMB_FIRST until TargetId.CRUMB_FIRST + 10 -> if (pet.sweepCrumb(TargetId.crumbIndex(target))) saveRequested = true
-            TargetId.PET_BODY -> if (pet.actions.activity == PetActivity.Napping) {
-                pet.actions.wake()
-                sounds += Sfx.Sleepy
-                backToNeeds()
-            } else {
-                sounds += Sfx.Happy
+            TargetId.LAMP_BULB -> if (flow.flow == FlowState.Incubation) {
+                egg.lightLamp(nowMs)
+                sounds += Sfx.UiConfirm
+                showToast("toast.lamp")
+                saveRequested = true
             }
+            TargetId.EGG -> if (flow.flow == FlowState.Incubation && egg.tapShell()) {
+                haptic = HapticCue.Crack
+                startHatch()
+            } else if (flow.flow == FlowState.Incubation && egg.condition == EggCondition.Ready) {
+                haptic = HapticCue.Crack
+            }
+            TargetId.PET_TIP, TargetId.PET_BODY -> when {
+                isStudio -> {
+                    preview.boop()
+                    sounds += Sfx.Happy
+                }
+                !isPetFlow -> Unit
+                target == TargetId.PET_TIP -> pet.boop(nowMs)
+                pet.actions.activity == PetActivity.Napping -> {
+                    pet.actions.wake()
+                    sounds += Sfx.Sleepy
+                    backToNeeds()
+                }
+                else -> sounds += Sfx.Happy
+            }
+            in TargetId.CRUMB_FIRST until TargetId.CRUMB_FIRST + 10 ->
+                if (isPetFlow && pet.sweepCrumb(TargetId.crumbIndex(target))) saveRequested = true
         }
+    }
+
+    /** Five taps cracked the shell: the 8 s hatch begins and the designed pet is made in the nest. */
+    private fun startHatch() {
+        flow.startHatch()
+        egg.startHatch()
+        pet.hatchNew(nowMs)
+        pet.body.holdStill = true
+        saveRequested = true
     }
 
     private fun choose(action: PetAction?) {
@@ -329,10 +566,56 @@ class PanguLogic(
         }
     }
 
+    private fun chooseEgg(action: EggAction?) {
+        haptic = HapticCue.UiPress
+        sounds += Sfx.UiTick
+        when (action) {
+            EggAction.Warm -> if (egg.ledger.capped(EggAction.Warm, clock.localDay(nowMs))) {
+                cappedAction = EggAction.Warm
+                screens.show(ScreenId.C16)
+            } else {
+                screens.show(ScreenId.C09)
+            }
+            EggAction.Lamp -> {
+                egg.lightLamp(nowMs)
+                showToast("toast.lamp")
+                saveRequested = true
+                screens.show(ScreenId.C10)
+            }
+            EggAction.Blanket -> {
+                showToast(if (egg.isTucked(nowMs)) "toast.blanketOn" else "toast.blanket")
+                screens.show(eggHomeScreen())
+            }
+            EggAction.Sing, EggAction.Listen, EggAction.Polish -> showToast("toast.soon")
+            null -> Unit
+        }
+    }
+
+    /** The egg's resting screen for its condition. */
+    fun eggHomeScreen(): ScreenId = when (egg.condition) {
+        EggCondition.Dormant -> ScreenId.C19
+        EggCondition.Ready -> ScreenId.C20
+        EggCondition.Fading -> ScreenId.C18
+        EggCondition.Chilly -> ScreenId.C17
+        else -> ScreenId.C07
+    }
+
+    /** The egg action the pie highlights. */
+    fun eggSuggestion(): EggAction? = EggSuggestions.forEgg(egg.sim.band(egg.egg.warmth), egg.ledger)
+
     private fun openPie() {
         pieIdleSec = 0f
         screens.show(ScreenId.C24)
         sounds += Sfx.Question
+    }
+
+    private fun openEggPie() {
+        pieIdleSec = 0f
+        screens.show(ScreenId.C08)
+    }
+
+    private fun closePie() {
+        if (screens.current == ScreenId.C08) screens.show(eggHomeScreen()) else screens.show(ScreenId.C23)
     }
 
     private fun backToNeeds() {
@@ -372,6 +655,61 @@ class PanguLogic(
         }
     }
 
+    override fun heartbeat() {
+        sounds += Sfx.Heartbeat
+        haptic = HapticCue.Heartbeat
+    }
+
+    override fun warmCompleted(result: CapResult) {
+        when (result) {
+            CapResult.Counted -> {
+                sounds += Sfx.Happy
+                haptic = HapticCue.Completion
+                showToast("toast.warmDone")
+                saveRequested = true
+            }
+            CapResult.DailyCap -> {
+                cappedAction = EggAction.Warm
+                screens.show(ScreenId.C16)
+            }
+            CapResult.Cooldown -> showToast("toast.cooldown")
+        }
+    }
+
+    override fun conditionChanged(condition: EggCondition) {
+        saveRequested = true
+        when (condition) {
+            EggCondition.Dormant -> {
+                if (egg.eggHeld) egg.releaseEgg()
+                dormantCount++
+                sounds += Sfx.DormantChime
+                flow.goDormant()
+                return
+            }
+            EggCondition.Ready -> sounds += Sfx.Happy
+            EggCondition.Chilly, EggCondition.Fading -> sounds += Sfx.Sad
+            else -> Unit
+        }
+        when (screens.current) {
+            ScreenId.C07, ScreenId.C17, ScreenId.C18, ScreenId.C20 -> screens.show(eggHomeScreen())
+            else -> Unit
+        }
+    }
+
+    override fun sealFinished() {
+        flow.sealDone()
+        screens.show(eggHomeScreen())
+        saveRequested = true
+    }
+
+    override fun hatchFinished() {
+        pet.body.holdStill = false
+        hatchedCount++
+        flow.hatched()
+        sounds += Sfx.Happy
+        saveRequested = true
+    }
+
     /** Stage-space point to pad-local metres (undoing the pad's position, yaw and display scale). */
     fun toPadLocal(stage: Vec3): Vec3 {
         val pad = padPose ?: return stage
@@ -401,5 +739,11 @@ class PanguLogic(
         const val PAD_RADIUS = 0.25f
         private const val THROW_SAMPLES = 5
         private const val MAX_THROW = 3f
+
+        /** Hatch timeline: the seam lights, the top lifts, then the hatchling rises. */
+        const val HATCH_SEAM_SEC = 3f
+        const val HATCH_LIFT_SEC = 4.5f
+        const val HATCH_RISE_SEC = 6f
+        private const val HATCH_BOING = 4f
     }
 }

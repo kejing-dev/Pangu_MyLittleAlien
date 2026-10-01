@@ -48,6 +48,9 @@ class PanguFrameSystem : System() {
         when (logic.consumeHaptic()) {
             HapticCue.UiPress -> haptics.play(inputConfig.uiPress)
             HapticCue.Grab -> haptics.play(inputConfig.grab)
+            HapticCue.Heartbeat -> haptics.play(inputConfig.heartbeat)
+            HapticCue.Completion -> haptics.play(inputConfig.completion)
+            HapticCue.Crack -> haptics.play(inputConfig.tapToCrack)
             null -> Unit
         }
         while (true) sfx.play(logic.nextSound() ?: break)

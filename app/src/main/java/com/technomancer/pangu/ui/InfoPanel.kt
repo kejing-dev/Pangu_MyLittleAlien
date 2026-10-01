@@ -48,24 +48,45 @@ object PanelColors {
     val butter = Color(0xFFF2DE9B)
 }
 
+/** Everything the info panel can show besides the screen itself. */
+class PanelState(
+    val pet: PetUi?,
+    val studio: StudioUi?,
+    val egg: EggUi?,
+    val counters: Triple<Int, Int, Int>,
+)
+
+/** What the panel's buttons and pickers report. */
+class PanelActions(
+    val onPrimary: () -> Unit,
+    val onSecondary: () -> Unit,
+    val onRecenter: () -> Unit,
+    val onLook: (Int) -> Unit,
+    val onWheel: (Int) -> Unit,
+)
+
 /**
  * The info panel beside the habitat: optional illustration, title, body, a kind-specific block
- * and a primary button. [content] is null for screens that have no panel yet; debug builds then
- * show only the debug row. [pet] fills the pet screens.
+ * and the primary and secondary buttons. [content] is null for screens that have no panel yet;
+ * debug builds then show only the debug row.
  */
 @Composable
 fun InfoPanel(
     content: ScreenContent?,
-    pet: PetUi?,
+    state: PanelState,
     loc: LocService,
     scale: UiScale,
     showDebug: Boolean,
-    onPrimary: () -> Unit,
-    onRecenter: () -> Unit,
+    actions: PanelActions,
 ) {
     if (content == null && !showDebug) return
     val shape = RoundedCornerShape(scale.px(30), scale.px(26), scale.px(32), scale.px(24))
-    val name = pet?.name ?: ""
+    val pet = state.pet
+    val egg = state.egg
+    val name = when {
+        content != null && content.id.ordinal < ScreenId.C22.ordinal -> state.studio?.name ?: egg?.name ?: pet?.name ?: ""
+        else -> pet?.name ?: ""
+    }
     Column(
         modifier = Modifier
             .width(scale.px(420))
@@ -78,11 +99,13 @@ fun InfoPanel(
             if (content.kind == PanelKind.Hab) HabitatIllustration(scale)
             if (content.kind == PanelKind.Needs && pet != null) NeedsBlock(pet, loc, scale)
             content.titleKey?.let {
-                Text(text = loc.format(it, "name" to name), color = PanelColors.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
+                Text(text = titleText(content, it, name, egg, loc), color = PanelColors.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
             }
-            bodyText(content, pet, loc)?.let {
+            bodyText(content, pet, egg, name, loc)?.let {
                 Text(text = it, color = PanelColors.body, fontSize = scale.sp(18f))
             }
+            if (content.kind == PanelKind.Look && state.studio != null) LookBlock(state.studio, loc, scale, actions.onLook)
+            if (content.kind == PanelKind.Name && state.studio != null) NameBlock(state.studio, scale, actions.onWheel)
             if (content.kind == PanelKind.Prog && pet != null) {
                 when (content.id) {
                     ScreenId.C26 -> ProgressBlock(pet.napMinutes, 30, loc.format("fmt.min", "a" to pet.napMinutes, "b" to 30), scale)
@@ -91,19 +114,59 @@ fun InfoPanel(
                     else -> Unit
                 }
             }
-            if (content.kind == PanelKind.Rows && content.id == ScreenId.C35 && pet != null) AwayRows(pet, loc, scale)
-            content.primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = onPrimary) }
-            if (content.id == ScreenId.C33 && pet != null) {
-                val (h, r, w) = pet.counters
+            if (content.kind == PanelKind.Prog && egg != null) {
+                when (content.id) {
+                    ScreenId.C06 -> ProgressBlock(egg.sealSec, egg.sealTotal, loc.format("fmt.sec", "a" to egg.sealSec, "b" to egg.sealTotal), scale)
+                    ScreenId.C09 -> ProgressBlock(egg.holdSec, egg.holdTotal, loc.format("fmt.sec", "a" to egg.holdSec, "b" to egg.holdTotal), scale)
+                    ScreenId.C20 -> ProgressBlock(egg.taps, egg.tapsTotal, loc.format("fmt.taps", "a" to egg.taps, "b" to egg.tapsTotal), scale)
+                    ScreenId.C21 -> ProgressBlock(egg.hatchSec, egg.hatchTotal, loc.format("fmt.sec", "a" to egg.hatchSec, "b" to egg.hatchTotal), scale)
+                    else -> Unit
+                }
+            }
+            if (content.id == ScreenId.C07 && egg != null) KeyValueRows(eggRows(egg, loc), scale)
+            if (content.id == ScreenId.C35) {
+                if (egg?.awayBands != null) KeyValueRows(eggAwayRows(egg, loc), scale) else if (pet != null) AwayRows(pet, loc, scale)
+            }
+            val primaryKey = if (content.id == ScreenId.C35 && egg?.awayBands != null) "welcome.egg.ok" else content.primaryKey
+            primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = actions.onPrimary) }
+            content.secondaryKey?.let { PillButton(loc.get(it), scale, primary = false, onClick = actions.onSecondary) }
+            if (content.id == ScreenId.C33 || content.id == ScreenId.C19) {
+                val (h, r, w) = state.counters
                 Text(text = loc.format("fmt.counters", "h" to h, "r" to r, "w" to w), color = PanelColors.muted, fontSize = scale.sp(15f))
             }
         }
-        if (showDebug) PillButton(loc.get("debug.recenter"), scale, primary = false, onClick = onRecenter)
+        if (showDebug) PillButton(loc.get("debug.recenter"), scale, primary = false, onClick = actions.onRecenter)
     }
 }
 
-/** Body text: static from the string table, or built from the pet state for C24 and C25. */
-private fun bodyText(content: ScreenContent, pet: PetUi?, loc: LocService): String? = when {
+/** Title text; C07 counts the egg's day and C16 names the capped action. */
+private fun titleText(content: ScreenContent, key: String, name: String, egg: EggUi?, loc: LocService): String = when (content.id) {
+    ScreenId.C07 -> loc.format(key, "name" to name, "day" to (egg?.day ?: 1))
+    ScreenId.C16 -> loc.get(key).replace("<action>", loc.get("ui.egg6.${egg?.cappedAction?.ordinal ?: 0}"))
+    else -> loc.format(key, "name" to name)
+}
+
+/** C07: warmth band, rituals today and the heat lamp. */
+private fun eggRows(egg: EggUi, loc: LocService): List<Pair<String, String>> = listOf(
+    loc.get("scr.C07.r.warmth") to loc.get("band.${egg.band.ordinal}"),
+    loc.get("scr.C07.r.rituals") to loc.format("scr.C07.v.rituals", "n" to egg.ritualsToday),
+    loc.get("scr.C07.r.lamp") to lampText(egg.lampHoursLeft, loc),
+)
+
+/** C35 for the egg: warmth band before → after, and the lamp. */
+private fun eggAwayRows(egg: EggUi, loc: LocService): List<Pair<String, String>> {
+    val (before, after) = egg.awayBands ?: return emptyList()
+    return listOf(
+        loc.get("scr.C07.r.warmth") to "${loc.get("band.${before.ordinal}")} → ${loc.get("band.${after.ordinal}")}",
+        loc.get("scr.C07.r.lamp") to lampText(egg.awayLampHours, loc),
+    )
+}
+
+private fun lampText(hours: Int, loc: LocService): String =
+    if (hours > 0) loc.format("scr.C07.v.lampOn", "h" to hours) else loc.get("scr.C07.v.lampOff")
+
+/** Body text: static from the string table, or built from the pet or egg state. */
+private fun bodyText(content: ScreenContent, pet: PetUi?, egg: EggUi?, name: String, loc: LocService): String? = when {
     content.id == ScreenId.C24 && pet != null -> {
         val need = loc.get("ui.needs.${pet.lowest.ordinal}")
         val actions = pet.suggested.map { loc.get("ui.pet6.${it.ordinal}") }
@@ -114,12 +177,11 @@ private fun bodyText(content: ScreenContent, pet: PetUi?, loc: LocService): Stri
         }
     }
     content.id == ScreenId.C25 -> loc.format("scr.C25.b", "food" to loc.get("food.2"))
-    content.id == ScreenId.C35 && pet != null -> if (pet.awayMinutes < 60) {
-        loc.format("scr.C35.bMin", "n" to pet.awayMinutes)
-    } else {
-        loc.format("scr.C35.b", "n" to pet.awayMinutes / 60)
+    content.id == ScreenId.C35 -> {
+        val minutes = if (egg?.awayBands != null) egg.awayMinutes else pet?.awayMinutes ?: 0L
+        if (minutes < 60) loc.format("scr.C35.bMin", "n" to minutes) else loc.format("scr.C35.b", "n" to minutes / 60)
     }
-    else -> content.bodyKey?.let { loc.format(it, "name" to (pet?.name ?: "")) }
+    else -> content.bodyKey?.let { loc.format(it, "name" to name) }
 }
 
 /** C35: the needs that dropped the most while away, and new crumbs. */

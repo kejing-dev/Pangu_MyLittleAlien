@@ -703,6 +703,54 @@
   {
    "k": "scr.C35.r.crumbs",
    "v": "New crumbs"
+  },
+  {
+   "k": "band.0",
+   "v": "Toasty"
+  },
+  {
+   "k": "band.1",
+   "v": "Cozy"
+  },
+  {
+   "k": "band.2",
+   "v": "Cool"
+  },
+  {
+   "k": "band.3",
+   "v": "Chilly"
+  },
+  {
+   "k": "scr.C07.v.lampOn",
+   "v": "On · {h} h left"
+  },
+  {
+   "k": "scr.C07.v.lampOff",
+   "v": "Off"
+  },
+  {
+   "k": "toast.lamp",
+   "v": "Heat lamp on · 10 h"
+  },
+  {
+   "k": "toast.blanket",
+   "v": "Drag the blanket onto the egg"
+  },
+  {
+   "k": "toast.blanketOn",
+   "v": "The blanket is already tucked in"
+  },
+  {
+   "k": "toast.warmDone",
+   "v": "Warm and happy ♡"
+  },
+  {
+   "k": "toast.cooldown",
+   "v": "Let it rest a few minutes"
+  },
+  {
+   "k": "welcome.egg.ok",
+   "v": "OK"
   }
  ]
 }

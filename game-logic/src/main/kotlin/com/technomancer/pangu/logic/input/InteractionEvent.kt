@@ -10,6 +10,9 @@ object TargetId {
     const val PET_BODY = 3
     const val PET_TIP = 4
     const val BALL = 5
+    const val LAMP_BULB = 6
+    const val BLANKET = 7
+    const val EGG = 8
 
     /** Crumbs use CRUMB_FIRST + index. */
     const val CRUMB_FIRST = 30
@@ -35,6 +38,12 @@ enum class InteractionType {
 
     /** A care-pie bubble; the target field holds the action index. */
     UiPie,
+
+    /** A studio swatch or shape; the target field holds [LookPick.encode]. */
+    UiLook,
+
+    /** A name wheel; the target field holds the wheel index 0..2. */
+    UiWheel,
 }
 
 /** One input event. [delta] is the drag movement since the previous event, in Stage space; [timeNanos] when it happened. */
@@ -80,4 +89,15 @@ class InteractionQueue(capacity: Int = 64) {
         size--
         return e
     }
+}
+
+/** Packs a studio choice into an event target: which row (body, tip, shape) and which item. */
+object LookPick {
+    const val BODY = 0
+    const val TIP = 1
+    const val SHAPE = 2
+
+    fun encode(row: Int, index: Int) = row * 16 + index
+    fun row(target: Int) = target / 16
+    fun index(target: Int) = target % 16
 }

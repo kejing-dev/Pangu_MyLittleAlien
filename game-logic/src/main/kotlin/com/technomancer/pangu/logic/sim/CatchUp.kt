@@ -1,6 +1,9 @@
 package com.technomancer.pangu.logic.sim
 
 import com.technomancer.pangu.logic.config.SimConfig
+import com.technomancer.pangu.logic.incubation.EggState
+import com.technomancer.pangu.logic.incubation.ImprintLedger
+import com.technomancer.pangu.logic.incubation.IncubationSim
 import com.technomancer.pangu.logic.pet.CrumbSpawner
 import com.technomancer.pangu.logic.pet.Distress
 import com.technomancer.pangu.logic.pet.DistressTracker
@@ -14,7 +17,8 @@ import com.technomancer.pangu.logic.time.IClock
 /**
  * Replays time spent away in fixed steps so the result does not depend on how long the gap was
  * split. Night sleep uses each step's local hour; a nap in progress keeps adding Energy; crumbs
- * appear and distress builds as they would have live. At most maxCatchUpHours are replayed.
+ * appear and distress builds as they would have live; the egg cools, warms under the lamp and
+ * advances toward hatching. At most maxCatchUpHours are replayed.
  */
 class CatchUp(private val sim: SimConfig, private val needsSim: NeedsSim, private val clock: IClock) {
 
@@ -47,6 +51,24 @@ class CatchUp(private val sim: SimConfig, private val needsSim: NeedsSim, privat
             t += stepMs
             steps++
         }
+        return steps
+    }
+
+    /** Advances the egg from [fromMs] to [toMs], rolling daily counts over at each local midnight. Returns the steps simulated. */
+    fun egg(egg: EggState, incubation: IncubationSim, ledger: ImprintLedger, fromMs: Long, toMs: Long): Int {
+        if (toMs <= fromMs) return 0
+        val stepMs = sim.simStepSec * 1000L
+        val maxMs = sim.maxCatchUpHours * 3_600_000L
+        var t = maxOf(fromMs, toMs - maxMs)
+        val stepHours = sim.simStepSec / 3600f
+        var steps = 0
+        while (t + stepMs <= toMs && !egg.dormant) {
+            ledger.rollover(clock.localDay(t))
+            incubation.step(egg, stepHours, t)
+            t += stepMs
+            steps++
+        }
+        ledger.rollover(clock.localDay(toMs))
         return steps
     }
 }

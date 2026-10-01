@@ -5,10 +5,10 @@ import com.pico.spatial.core.ecs.CollisionComponent
 import com.pico.spatial.core.ecs.Entity
 import com.pico.spatial.core.ecs.HoverEffectComponent
 import com.pico.spatial.core.ecs.InteractableComponent
+import com.pico.spatial.core.ecs.ModelComponent
 import com.pico.spatial.core.ecs.TransformComponent
 import com.pico.spatial.core.ecs.resource.PhysicsMaterialResource
 import com.pico.spatial.core.ecs.resource.ShapeResource
-import com.pico.spatial.core.math.Vector3
 import com.technomancer.pangu.ecs.components.TagComponent
 import com.technomancer.pangu.ecs.toSdk
 import com.technomancer.pangu.logic.art.AlienParts
@@ -20,45 +20,55 @@ import com.technomancer.pangu.logic.art.ToonParams
 import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.math.Vec3
 
-/** Look choices for the alien: 0xRRGGBB body and tip colours and the antenna tip index (0–5). */
-data class AlienLook(val bodyColor: Int, val tipColor: Int, val tipShape: Int)
-
-/** Handles to the rig entities the pet animation writes to. */
+/** Handles to the rig entities the animation writes to, and the parts that take the look's colours. */
 class AlienRig(
     val root: Entity,
     val body: Entity,
     val eyes: Entity,
     val antenna: Entity,
+    /** Body and stalk models, tinted with the body colour. */
+    val bodyModels: List<Entity>,
+    /** One pivot per antenna shape at the tip anchor; only the chosen one is shown. */
+    val tips: List<Entity>,
+    /** The tip model of each shape, tinted with the tip colour. */
+    val tipModels: List<Entity>,
 )
 
 /**
  * Builds the alien from alien_baby.glb: one mesh per part with a baked toon look, ink outline
- * hulls on the body and tip, and a small rig so body, eyes and antenna can move separately.
- * Rig: PetRoot → PetBody → (parts, EyesPivot → eyes, AntennaPivot → stalk and tip).
+ * hulls on the body and tips, and a small rig so body, eyes and antenna can move separately.
+ * Rig: PetRoot → PetBody → (parts, EyesPivot → eyes, AntennaPivot → stalk and six tips).
+ *
+ * The body, stalk and tips are baked in white shading only and take their colour from their
+ * material (vertex colour × material colour), so the look can change instantly.
  */
-class AlienFactory(private val meshes: MeshFactory, private val look: AlienLook) {
+class AlienFactory(private val meshes: MeshFactory) {
     private var baked: Map<String, MeshData> = emptyMap()
+
+    /** Each antenna tip mesh (white-baked) with its upload key, for the egg's emblem. */
+    var tipShapes: List<Pair<String, MeshData>> = emptyList()
+        private set
 
     /** Parses the GLB and uploads all meshes. Slow; call off the main thread. */
     fun preload(assets: AssetManager) {
         val parts = GlbParser.parse(assets.open(GLB_PATH).use { it.readBytes() })
         val out = HashMap<String, MeshData>()
-        val body = ToonBake.rgb(look.bodyColor)
-        val tip = ToonBake.rgb(look.tipColor)
-        val tipName = AlienParts.TIPS[look.tipShape.coerceIn(0, AlienParts.TIPS.lastIndex)]
-        fun add(name: String, key: String, mesh: MeshData?) {
+        fun add(key: String, mesh: MeshData?) {
             if (mesh != null) out[key] = mesh.also { meshes.mesh(it, key) }
         }
-        add(AlienParts.BODY, BODY, parts[AlienParts.BODY]?.let { ToonBake.bake(it, ToonParams(body, BODY_SHADE, 0.10f)) })
-        add(AlienParts.STALK, STALK, parts[AlienParts.STALK]?.let { ToonBake.bake(it, ToonParams(body, BODY_SHADE, 0.10f)) })
-        add(tipName, TIP, parts[tipName]?.let { ToonBake.bake(it, ToonParams(tip, TIP_SHADE, 0.25f)) })
-        add(AlienParts.EYES, EYES, parts[AlienParts.EYES]?.let { ToonBake.bake(it, ToonParams(EYE_BASE, EYE_SHADE, 0f, rim = 0f)) })
-        add(AlienParts.HIGHLIGHTS, HIGHLIGHTS, parts[AlienParts.HIGHLIGHTS])
-        add(AlienParts.MOUTH, MOUTH, parts[AlienParts.MOUTH])
-        add(AlienParts.BLUSH, BLUSH, parts[AlienParts.BLUSH])
-        add(AlienParts.BODY, BODY_OUTLINE, parts[AlienParts.BODY]?.let { OutlineHull.build(it, 0.012f) })
-        add(tipName, TIP_OUTLINE, parts[tipName]?.let { OutlineHull.build(it, 0.008f) })
+        add(BODY, parts[AlienParts.BODY]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
+        add(STALK, parts[AlienParts.STALK]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
+        AlienParts.TIPS.forEachIndexed { i, name ->
+            add(tipKey(i), parts[name]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, TIP_SHADE, 0.25f)) })
+            add(tipOutlineKey(i), parts[name]?.let { OutlineHull.build(it, 0.008f) })
+        }
+        add(EYES, parts[AlienParts.EYES]?.let { ToonBake.bake(it, ToonParams(EYE_BASE, EYE_SHADE, 0f, rim = 0f)) })
+        add(HIGHLIGHTS, parts[AlienParts.HIGHLIGHTS])
+        add(MOUTH, parts[AlienParts.MOUTH])
+        add(BLUSH, parts[AlienParts.BLUSH])
+        add(BODY_OUTLINE, parts[AlienParts.BODY]?.let { OutlineHull.build(it, 0.012f) })
         baked = out
+        tipShapes = AlienParts.TIPS.indices.mapNotNull { i -> out[tipKey(i)]?.let { tipKey(i) to it } }
     }
 
     /** Creates the rig entities. Must run on the main thread, after [preload]. */
@@ -67,7 +77,11 @@ class AlienFactory(private val meshes: MeshFactory, private val look: AlienLook)
         val body = Entity().apply { setName(BODY_PIVOT) }
         root.addChild(body)
 
-        part(BODY, WHITE)?.let { body.addChild(it) }
+        val bodyModels = ArrayList<Entity>()
+        part(BODY, WHITE)?.let {
+            body.addChild(it)
+            bodyModels += it
+        }
         part(BODY_OUTLINE, INK)?.let { body.addChild(it) }
         part(MOUTH, INK)?.let { body.addChild(it) }
         part(BLUSH, BLUSH_COLOR)?.let { body.addChild(it) }
@@ -78,22 +92,36 @@ class AlienFactory(private val meshes: MeshFactory, private val look: AlienLook)
         part(HIGHLIGHTS, WHITE, -EYE_CENTRE)?.let { eyes.addChild(it) }
         body.addChild(eyes)
 
-        // The antenna swings around its base.
+        // The antenna swings around its base; each tip grows in around the tip anchor.
         val antenna = pivot(ANTENNA_PIVOT, AlienParts.ANTENNA_BASE)
-        part(STALK, WHITE, -AlienParts.ANTENNA_BASE)?.let { antenna.addChild(it) }
-        part(TIP, WHITE, -AlienParts.ANTENNA_BASE)?.let { antenna.addChild(it) }
-        part(TIP_OUTLINE, INK, -AlienParts.ANTENNA_BASE)?.let { antenna.addChild(it) }
+        part(STALK, WHITE, -AlienParts.ANTENNA_BASE)?.let {
+            antenna.addChild(it)
+            bodyModels += it
+        }
+        val tips = ArrayList<Entity>()
+        val tipModels = ArrayList<Entity>()
+        for (i in AlienParts.TIPS.indices) {
+            val tipPivot = pivot("PetTip$i", AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE)
+            part(tipKey(i), WHITE, -AlienParts.TIP_ANCHOR)?.let {
+                it.setName("Pet_Tip$i")
+                tipPivot.addChild(it)
+                tipModels += it
+            }
+            part(tipOutlineKey(i), INK, -AlienParts.TIP_ANCHOR)?.let { tipPivot.addChild(it) }
+            antenna.addChild(tipPivot)
+            tips += tipPivot
+        }
         body.addChild(antenna)
 
         // Touch targets: the body capsule and the antenna tip.
         body.addChild(collider("PetBodyCollider", Vec3(0f, 1.16f, 0f), TargetId.PET_BODY) { ShapeResource.createCapsule(2.3f, 0.85f) })
         antenna.addChild(collider("PetTipCollider", AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE + Vec3(0f, 0.12f, 0f), TargetId.PET_TIP) { ShapeResource.createSphere(0.3f) })
-        return AlienRig(root, body, eyes, antenna)
+        return AlienRig(root, body, eyes, antenna, bodyModels, tips, tipModels)
     }
 
-    private fun part(key: String, color: Int, offset: Vec3 = Vec3.ZERO, cullFront: Boolean = false): Entity? {
+    private fun part(key: String, color: Int, offset: Vec3 = Vec3.ZERO): Entity? {
         val data = baked[key] ?: return null
-        return meshes.model(key, data, color, offset.toSdk(), cullFront)
+        return meshes.model(key, data, color, offset.toSdk())
     }
 
     private fun pivot(name: String, at: Vec3) = Entity().apply {
@@ -120,23 +148,34 @@ class AlienFactory(private val meshes: MeshFactory, private val look: AlienLook)
         private const val BODY = "Pet_Body"
         private const val BODY_OUTLINE = "Pet_BodyOutline"
         private const val STALK = "Pet_Stalk"
-        private const val TIP = "Pet_Tip"
-        private const val TIP_OUTLINE = "Pet_TipOutline"
         private const val EYES = "Pet_Eyes"
         private const val HIGHLIGHTS = "Pet_Highlights"
         private const val MOUTH = "Pet_Mouth"
         private const val BLUSH = "Pet_Blush"
 
+        fun tipKey(shape: Int) = "Pet_TipShape$shape"
+        private fun tipOutlineKey(shape: Int) = "Pet_TipOutline$shape"
+
         private const val WHITE = 0xFFFFFF
-        private const val INK = 0x2F2826
+        const val INK = 0x2F2826
         private const val BLUSH_COLOR = 0xF2A8A3
+        private val WHITE_RGB = floatArrayOf(1f, 1f, 1f)
         private val EYE_CENTRE = Vec3(0f, 1.455f, 0.68f)
         private val BODY_SHADE = floatArrayOf(0.8f, 0.76f, 0.86f)
         private val TIP_SHADE = floatArrayOf(0.86f, 0.82f, 0.9f)
         private val EYE_BASE = floatArrayOf(0.13f, 0.12f, 0.15f)
         private val EYE_SHADE = floatArrayOf(0.7f, 0.7f, 0.75f)
-
-        /** Default look: Chalk pink body, Tomato tip, Heart antenna. */
-        val DEFAULT_LOOK = AlienLook(0xEDB9B1, 0xD9644F, 2)
     }
+}
+
+/** Tints a model entity by swapping its first material for a shared one of [color]. */
+fun MeshFactory.tint(entity: Entity, color: Int) {
+    val model = entity.components[ModelComponent::class.java] ?: return
+    if (model.materials.size > 0) model.materials.set(0, unlit(color))
+}
+
+/** Tints the body and stalk with [bodyColor] and every antenna tip with [tipColor]. */
+fun MeshFactory.applyLook(rig: AlienRig, bodyColor: Int, tipColor: Int) {
+    rig.bodyModels.forEach { tint(it, bodyColor) }
+    rig.tipModels.forEach { tint(it, tipColor) }
 }

@@ -19,16 +19,27 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import com.pico.spatial.ui.design.Text
+import com.technomancer.pangu.logic.incubation.EggAction
+import com.technomancer.pangu.logic.incubation.EggSuggestions
 import com.technomancer.pangu.logic.loc.LocService
 import com.technomancer.pangu.logic.pet.PetAction
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Glyph per action, in pie order. */
-private val PET_GLYPHS = listOf("●", "☾", "✧", "♫", "◉", "♡")
+/** One bubble: its glyph, label key, whether it can be chosen now and whether it is suggested. */
+data class PieItem(val glyph: String, val labelKey: String, val enabled: Boolean, val suggested: Boolean)
 
-/** Actions that can be chosen; anything else is drawn faded. */
-private val AVAILABLE = PetAction.entries.toSet()
+/** Glyphs per action, in pie order. */
+private val PET_GLYPHS = listOf("●", "☾", "✧", "♫", "◉", "♡")
+private val EGG_GLYPHS = listOf("◡", "☼", "≋", "♪", "◎", "◇")
+
+/** The pet pie: every action available, the suggested ones filled. */
+fun petPieItems(suggested: List<PetAction>): List<PieItem> =
+    PetAction.entries.map { PieItem(PET_GLYPHS[it.ordinal], "ui.pet6.${it.ordinal}", true, it in suggested) }
+
+/** The egg pie: rituals not built yet are faded; the suggested action is filled. */
+fun eggPieItems(suggested: EggAction?): List<PieItem> =
+    EggAction.entries.map { PieItem(EGG_GLYPHS[it.ordinal], "ui.egg6.${it.ordinal}", it in EggSuggestions.AVAILABLE, it == suggested) }
 
 /** Organic blob outline taken from the mockup's uneven corner radii. */
 private val BlobShape = GenericShape { size, _ ->
@@ -44,10 +55,11 @@ private val BlobShape = GenericShape { size, _ ->
 
 /**
  * The care pie: six bubbles on a ring around the orb, starting at the top and going clockwise,
- * with a dashed guide circle. Suggested actions are ink-filled; unavailable ones are faded.
+ * with a dashed guide circle. Suggested items are ink-filled; unavailable ones are faded and
+ * still report the pick, so the logic can say why.
  */
 @Composable
-fun PieMenu(visible: Boolean, suggested: List<PetAction>, loc: LocService, scale: UiScale, ringRadiusPx: Float, onPick: (PetAction) -> Unit) {
+fun PieMenu(visible: Boolean, items: List<PieItem>, loc: LocService, scale: UiScale, ringRadiusPx: Float, onPick: (Int) -> Unit) {
     if (!visible) return
     val bubble = 62f
     val boxSize = (ringRadiusPx + bubble) * 2f + 40f
@@ -59,17 +71,17 @@ fun PieMenu(visible: Boolean, suggested: List<PetAction>, loc: LocService, scale
                 style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))),
             )
         }
-        PetAction.entries.forEachIndexed { i, action ->
-            val angle = -Math.PI / 2 + i * 2 * Math.PI / PetAction.entries.size
+        items.forEachIndexed { i, item ->
+            val angle = -Math.PI / 2 + i * 2 * Math.PI / items.size
             val x = (ringRadiusPx * cos(angle)).toFloat()
             val y = (ringRadiusPx * sin(angle)).toFloat()
-            val filled = action in suggested
-            val enabled = action in AVAILABLE
+            val filled = item.suggested
+            val enabled = item.enabled
             Column(
                 modifier = Modifier
                     .offset(scale.px(x), scale.px(y + 12f))
                     .alpha(if (enabled) 1f else 0.35f)
-                    .clickable { onPick(action) },
+                    .clickable { onPick(i) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
@@ -79,7 +91,7 @@ fun PieMenu(visible: Boolean, suggested: List<PetAction>, loc: LocService, scale
                         .border(scale.px(1.5f), PanelColors.ink, BlobShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = PET_GLYPHS[i], color = if (filled) PanelColors.paper else PanelColors.ink, fontSize = scale.sp(26f))
+                    Text(text = item.glyph, color = if (filled) PanelColors.paper else PanelColors.ink, fontSize = scale.sp(26f))
                 }
                 Box(
                     modifier = Modifier
@@ -87,7 +99,7 @@ fun PieMenu(visible: Boolean, suggested: List<PetAction>, loc: LocService, scale
                         .background(PanelColors.paper.copy(alpha = 0.94f), RoundedCornerShape(scale.px(9)))
                         .padding(horizontal = scale.px(8), vertical = scale.px(2)),
                 ) {
-                    Text(text = loc.get("ui.pet6.${action.ordinal}"), color = PanelColors.ink, fontSize = scale.sp(14f), fontWeight = FontWeight.Bold)
+                    Text(text = loc.get(item.labelKey), color = PanelColors.ink, fontSize = scale.sp(14f), fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -88,6 +88,9 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     /** Where the pet should go instead of wandering (the tub, the ball); null to wander. */
     var goal: Vec3? = null
 
+    /** While true the pet stays where it is (hatching out of the egg). */
+    var holdStill = false
+
     /** Dance style: false wiggles, true spins. */
     var danceSpins = false
 
@@ -198,6 +201,7 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     }
 
     private fun updateMotion(dt: Float, activity: PetActivity, facing: Vec3?) {
+        if (holdStill) return
         if (hopT >= 0f) {
             hopT += dt / config.hopSec
             val t = hopT.coerceAtMost(1f)

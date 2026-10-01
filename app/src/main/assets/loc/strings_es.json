@@ -703,6 +703,54 @@
   {
    "k": "scr.C35.r.crumbs",
    "v": "Migas nuevas"
+  },
+  {
+   "k": "band.0",
+   "v": "Calentito"
+  },
+  {
+   "k": "band.1",
+   "v": "Acogedor"
+  },
+  {
+   "k": "band.2",
+   "v": "Fresco"
+  },
+  {
+   "k": "band.3",
+   "v": "Frío"
+  },
+  {
+   "k": "scr.C07.v.lampOn",
+   "v": "Encendida · quedan {h} h"
+  },
+  {
+   "k": "scr.C07.v.lampOff",
+   "v": "Apagada"
+  },
+  {
+   "k": "toast.lamp",
+   "v": "Lámpara encendida · 10 h"
+  },
+  {
+   "k": "toast.blanket",
+   "v": "Arrastra la manta sobre el huevo"
+  },
+  {
+   "k": "toast.blanketOn",
+   "v": "La manta ya está puesta"
+  },
+  {
+   "k": "toast.warmDone",
+   "v": "Calentito y feliz ♡"
+  },
+  {
+   "k": "toast.cooldown",
+   "v": "Déjalo descansar unos minutos"
+  },
+  {
+   "k": "welcome.egg.ok",
+   "v": "Vale"
   }
  ]
 }

@@ -3,7 +3,7 @@ package com.technomancer.pangu.logic.audio
 import java.io.File
 
 /** Sounds the game plays. Pet chirps exist at several voice-pitch steps; see [chirpId]. */
-enum class Sfx { Happy, Question, Sad, Sleepy, UiTick, UiConfirm, DanceWiggle, DanceSpin, WentHome }
+enum class Sfx { Happy, Question, Sad, Sleepy, UiTick, UiConfirm, DanceWiggle, DanceSpin, WentHome, Heartbeat, CrackTap, Fanfare, DormantChime }
 
 /** Every procedural sound, by asset id (file name without .wav). */
 object AudioCatalog {
@@ -32,6 +32,21 @@ object AudioCatalog {
         Sfx.DanceWiggle to danceLoop(Wave.Square, Wave.Triangle, listOf(0, 4, 7, 4, 9, 7, 4, 2)),
         Sfx.DanceSpin to danceLoop(Wave.Triangle, Wave.Square, listOf(0, 7, 12, 7, 5, 9, 12, 9)),
         Sfx.WentHome to listOf(Note(Wave.Sine, listOf(2600f, 600f), 1.2f, 0.3f)),
+    )
+
+    /** Sounds that come from the egg: its heartbeat, crack taps, the hatch fanfare and the dormant chime. */
+    private val egg: Map<Sfx, List<Note>> = mapOf(
+        Sfx.Heartbeat to listOf(
+            Note(Wave.Sine, listOf(70f), 0.06f, 0.9f),
+            Note(Wave.Sine, listOf(70f), 0.06f, 0.75f, startSec = 0.16f),
+        ),
+        Sfx.CrackTap to listOf(Note(Wave.Square, listOf(1800f), 0.025f, 0.3f)),
+        Sfx.Fanfare to listOf(784f, 1046.5f, 1318.5f, 1568f, 2093f).mapIndexed { i, f ->
+            Note(Wave.Triangle, listOf(f), if (i == 4) 0.45f else 0.12f, 0.4f, startSec = i * 0.13f)
+        },
+        Sfx.DormantChime to listOf(784f, 659.25f, 523.25f).mapIndexed { i, f ->
+            Note(Wave.Sine, listOf(f), 0.5f, 0.28f, startSec = i * 0.28f)
+        },
     )
 
     /** Eight bars at 110 BPM: an eighth-note lead over a quarter-note bass in C major. */
@@ -67,6 +82,10 @@ object AudioCatalog {
 
     fun uiId(sfx: Sfx) = "ui_${sfx.name.lowercase()}"
 
+    fun isEgg(sfx: Sfx) = sfx in egg
+
+    fun eggId(sfx: Sfx) = "egg_${sfx.name.lowercase()}"
+
     /** Index of the pitch step closest to [voicePitch]. */
     fun nearestStep(voicePitch: Float): Int = PITCH_STEPS.indices.minBy { kotlin.math.abs(PITCH_STEPS[it] - voicePitch) }
 
@@ -80,6 +99,7 @@ object AudioCatalog {
         }
         for ((sfx, notes) in ui) out[uiId(sfx)] = notes
         for ((sfx, notes) in music) out[musicId(sfx)] = notes
+        for ((sfx, notes) in egg) out[eggId(sfx)] = notes
         return out
     }
 }

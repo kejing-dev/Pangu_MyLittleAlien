@@ -11,7 +11,7 @@ import com.technomancer.pangu.logic.audio.Sfx
 
 /**
  * Plays the procedural clips rendered at build time (assets/audio/<id>.wav). Pet chirps come
- * from the pet, UI sounds from the panel side of the habitat. Clips load on first use and each
+ * from the pet, egg sounds from the egg, UI sounds from the panel side of the habitat. Clips load on first use and each
  * emitter keeps one controller per clip, so replaying a clip does not allocate.
  */
 class SfxPlayer {
@@ -24,6 +24,11 @@ class SfxPlayer {
             value?.let(::ensureAudio)
         }
     var uiEmitter: Entity? = null
+        set(value) {
+            field = value
+            value?.let(::ensureAudio)
+        }
+    var eggEmitter: Entity? = null
         set(value) {
             field = value
             value?.let(::ensureAudio)
@@ -64,8 +69,13 @@ class SfxPlayer {
     fun play(sfx: Sfx) {
         if (!soundOn || AudioCatalog.isLoop(sfx)) return
         val fromPet = AudioCatalog.isChirp(sfx) || AudioCatalog.isMusic(sfx)
-        val emitter = (if (fromPet) petEmitter else uiEmitter) ?: return
+        val emitter = when {
+            AudioCatalog.isEgg(sfx) -> eggEmitter ?: uiEmitter
+            fromPet -> petEmitter
+            else -> uiEmitter
+        } ?: return
         val id = when {
+            AudioCatalog.isEgg(sfx) -> AudioCatalog.eggId(sfx)
             AudioCatalog.isChirp(sfx) -> AudioCatalog.chirpId(sfx, AudioCatalog.nearestStep(voicePitch))
             AudioCatalog.isMusic(sfx) -> AudioCatalog.musicId(sfx)
             else -> AudioCatalog.uiId(sfx)
@@ -88,6 +98,7 @@ class SfxPlayer {
         controllers.clear()
         petEmitter = null
         uiEmitter = null
+        eggEmitter = null
     }
 
     private fun load(id: String): AudioResource? = try {

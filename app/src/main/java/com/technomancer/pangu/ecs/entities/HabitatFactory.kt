@@ -86,7 +86,13 @@ class HabitatFactory(private val meshes: MeshFactory) {
         }
         lamp.addChild(part("PH_LampBase", INK))
         lamp.addChild(part("PH_LampStem", INK))
+        // Tapping the bulb lights the heat lamp.
         lamp.addChild(part(LAMP_BULB, LAMP_OFF))
+        lamp.addChild(Entity().apply {
+            setName("PH_LampBulbCollider")
+            components[TransformComponent::class.java]?.setPosition(Vector3(0f, 0.15f, 0f))
+            makeInteractive(this, TargetId.LAMP_BULB, BULB_TAP_RADIUS)
+        })
         return lamp
     }
 
@@ -141,6 +147,8 @@ class HabitatFactory(private val meshes: MeshFactory) {
         const val PAD_SIDE = 0xDDD3C4
         const val NEST_COLOR = 0xE7D6BF
         const val LAMP_OFF = 0xE7DFD2
+        const val LAMP_ON = 0xF2DE9B
+        const val BULB_TAP_RADIUS = 0.035f
         const val BUTTER = 0xF2DE9B
         const val ORB_COLOR = 0x5A504C
     }

@@ -29,20 +29,3 @@ class RubDetector(private val maxDistance: Float, private val minSpeed: Float) {
         rubSeconds = 0f
     }
 }
-
-/** Counts taps toward a target number, e.g. taps to crack the egg. */
-class TapCounter(val target: Int) {
-    var count = 0
-        private set
-
-    /** Adds a tap; returns true on the tap that reaches the target. */
-    fun tap(): Boolean {
-        if (count >= target) return false
-        count++
-        return count == target
-    }
-
-    fun reset() {
-        count = 0
-    }
-}

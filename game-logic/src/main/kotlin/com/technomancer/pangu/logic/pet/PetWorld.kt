@@ -307,7 +307,13 @@ class PetWorld(
         if (actions.boop(needs, nowMs)) events.sound(Sfx.Happy)
     }
 
-    /** A fresh pet after the old one went home (until creation exists). */
+    /** A freshly hatched pet in the nest, with starting needs and nothing on the pad. */
+    fun hatchNew(nowMs: Long) {
+        respawn(nowMs)
+        body.place(PetBody.NEST)
+    }
+
+    /** Resets needs, crumbs and distress for a new pet hatched at [nowMs]. */
     fun respawn(nowMs: Long) {
         config.startNeeds.forEachIndexed { i, v -> needs.values[i] = v }
         crumbs.positions.clear()

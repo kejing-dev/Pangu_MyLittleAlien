@@ -13,7 +13,13 @@ import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.config.PlacementConfig
 import com.technomancer.pangu.logic.config.SimConfig
 import com.technomancer.pangu.logic.config.UiConfig
+import com.technomancer.pangu.logic.config.IncubationConfig
+import com.technomancer.pangu.logic.config.LookConfig
+import com.technomancer.pangu.logic.creation.KeeperIds
+import com.technomancer.pangu.logic.flow.FlowMachine
+import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenId
+import com.technomancer.pangu.logic.incubation.restore
 import com.technomancer.pangu.logic.habitat.PadPlacement
 import com.technomancer.pangu.logic.input.InputSnapshot
 import com.technomancer.pangu.logic.input.InteractionQueue
@@ -46,31 +52,49 @@ object AppServices {
         val inputConfig = configs.load("input_config", InputConfig())
         val petConfig = configs.load("pet_config", PetConfig())
         val simConfig = configs.load("sim_config", SimConfig())
+        val lookConfig = configs.load("look_config", LookConfig())
+        val incubationConfig = configs.load("incubation_config", IncubationConfig())
         // Debug overrides only apply to debug builds.
-        val debugConfig = if (debuggable) configs.load("debug_config", DebugConfig()) else DebugConfig(forceFlow = "Pet")
+        val debugConfig = if (debuggable) configs.load("debug_config", DebugConfig()) else DebugConfig()
         val clock: IClock = SystemClock()
         val store = FileSaveStore(app.filesDir)
         val save = loadSave(store)
 
         val placement = PadPlacement(placementConfig)
-        // Until creation exists, placing the pad leads straight to the pet.
-        val afterPlacement = if (debugConfig.forceFlow == "Pet") ScreenId.C23 else ScreenId.C03
-        val startScreen = if (save.padPose.has) {
-            save.screen.takeIf { it != ScreenId.C02 && it != ScreenId.C03 } ?: afterPlacement
-        } else {
-            ScreenId.C02
-        }
+        // Saves from before creation existed have a hatched pet but no flow yet.
+        val flow = if (save.flow == FlowState.Onboarding && save.pet.hatchUtcMs > 0L) FlowState.Pet else save.flow
+        val startScreen = if (save.padPose.has) FlowMachine.resumeScreen(flow, save.screen) else ScreenId.C02
         val logic = PanguLogic(
             placement = placement,
             startScreen = startScreen,
-            afterPlacement = afterPlacement,
+            afterPlacement = ScreenId.C03,
             petConfig = petConfig,
             uiConfig = uiConfig,
             clock = clock,
             random = XorShift32.fromLong(clock.nowUtcMillis()),
+            lookConfig = lookConfig,
+            incubationConfig = incubationConfig,
+            skipToPet = debugConfig.forceFlow == "Pet",
         )
+        logic.keeperIds = KeeperIds.ensure(KeeperIds(save.keeperId, save.secretId).takeIf { save.keeperId >= 0 }, clock)
+        logic.hatchedCount = save.hatchedCount
+        logic.dormantCount = save.dormantCount
+        logic.wentHomeCount = save.wentHomeCount
+        logic.flow.flow = flow
+        logic.flow.look = save.look
+        logic.flow.lastLook = save.lastLook
         val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
-        restorePet(logic, save, catchUp, clock)
+        when (flow) {
+            FlowState.Hatching -> {
+                // The app closed mid-hatch: the pet is out.
+                logic.flow.flow = FlowState.Pet
+                logic.hatchedCount++
+                restorePet(logic, save, catchUp, clock)
+            }
+            FlowState.Pet, FlowState.WentHome -> restorePet(logic, save, catchUp, clock)
+            FlowState.Incubation, FlowState.Dormant -> restoreEgg(logic, save, catchUp, clock, petConfig.welcomeBackMinMinutes)
+            else -> logic.nowMs = clock.nowUtcMillis()
+        }
 
         val language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
         val loc = LocService(loadTables(app.assets), language) { Log.w("Pangu", "Missing string $it") }
@@ -80,7 +104,7 @@ object AppServices {
             volume = save.settings.volume / 100f
             soundOn = save.settings.soundOn
         }
-        val session = SessionController(logic, store, clock, ui, save, catchUp)
+        val session = SessionController(logic, store, clock, ui, save, catchUp, petConfig.welcomeBackMinMinutes)
 
         ServiceRegistry.register(DebugFlags(debuggable, if (debuggable) debugConfig.timeScale else 1f))
         ServiceRegistry.register(configs)
@@ -110,9 +134,6 @@ object AppServices {
             return
         }
         val pet = logic.pet
-        logic.hatchedCount = save.hatchedCount
-        logic.dormantCount = save.dormantCount
-        logic.wentHomeCount = save.wentHomeCount
         pet.hatchMs = data.hatchUtcMs
         data.needs.forEachIndexed { i, v -> if (i < pet.needs.values.size) pet.needs.values[i] = v }
         for (i in 0 until data.crumbPositions.size / 2) {
@@ -128,13 +149,25 @@ object AppServices {
         val steps = catchUp.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config))
         pet.syncStage()
         logic.nowMs = now
-        logic.announceDistress()
+        logic.announceState()
         Log.i("Pangu", "Caught up $steps minutes of pet time")
 
         val lastSeen = if (save.lastSeenUtcMs > 0L) save.lastSeenUtcMs else now
         AwaySummary.of(before, pet.needs.values, crumbsBefore, pet.needs.crumbs, now - lastSeen, pet.config.welcomeBackMinMinutes)
             ?.takeIf { logic.isPetFlow }
             ?.let { logic.showWelcomeBack(it) }
+    }
+
+    /** Loads the egg and replays the time the app was closed. */
+    private fun restoreEgg(logic: PanguLogic, save: SaveData, catchUp: CatchUp, clock: IClock, welcomeMinMinutes: Float) {
+        val now = clock.nowUtcMillis()
+        logic.egg.restore(save.egg)
+        val from = if (save.lastSimUtcMs > 0L) save.lastSimUtcMs else now
+        logic.egg.syncCondition(from)
+        logic.nowMs = from
+        logic.catchUpEgg(catchUp, from, now, welcomeMinMinutes)
+        logic.nowMs = now
+        Log.i("Pangu", "Caught up the egg to ${logic.egg.condition}, warmth ${logic.egg.egg.warmth}")
     }
 
     private fun loadTables(assets: AssetManager): Map<Language, LocTable> =

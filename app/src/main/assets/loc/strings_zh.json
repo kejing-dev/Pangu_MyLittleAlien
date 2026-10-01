@@ -703,6 +703,54 @@
   {
    "k": "scr.C35.r.crumbs",
    "v": "新的碎屑"
+  },
+  {
+   "k": "band.0",
+   "v": "暖烘烘"
+  },
+  {
+   "k": "band.1",
+   "v": "暖和"
+  },
+  {
+   "k": "band.2",
+   "v": "微凉"
+  },
+  {
+   "k": "band.3",
+   "v": "冷冰冰"
+  },
+  {
+   "k": "scr.C07.v.lampOn",
+   "v": "开着 · 还剩 {h} 小时"
+  },
+  {
+   "k": "scr.C07.v.lampOff",
+   "v": "关着"
+  },
+  {
+   "k": "toast.lamp",
+   "v": "暖灯已开 · 10 小时"
+  },
+  {
+   "k": "toast.blanket",
+   "v": "把毯子拖到蛋上"
+  },
+  {
+   "k": "toast.blanketOn",
+   "v": "毯子已经盖好了"
+  },
+  {
+   "k": "toast.warmDone",
+   "v": "暖暖的,很开心 ♡"
+  },
+  {
+   "k": "toast.cooldown",
+   "v": "让它休息几分钟吧"
+  },
+  {
+   "k": "welcome.egg.ok",
+   "v": "好的"
   }
  ]
 }

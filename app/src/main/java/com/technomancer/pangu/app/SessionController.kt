@@ -5,6 +5,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.technomancer.pangu.logic.PanguLogic
+import com.technomancer.pangu.logic.flow.FlowState
+import com.technomancer.pangu.logic.incubation.toData
 import com.technomancer.pangu.logic.habitat.PadPose
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.pet.AwaySummary
@@ -47,6 +49,7 @@ class SessionController(
     private val ui: UiBridge,
     initial: SaveData,
     private val catchUp: CatchUp? = null,
+    private val welcomeMinMinutes: Float = 60f,
 ) : LifecycleEventObserver {
 
     private val ioThread = Executors.newSingleThreadExecutor { r -> Thread(r, "PanguSave") }
@@ -82,10 +85,14 @@ class SessionController(
     /** Replays the time the app spent in the background and shows Welcome back after a long absence. */
     private fun catchUpPause() {
         val cu = catchUp ?: return
-        if (!logic.isPetFlow || logic.pet.hatchMs == 0L) return
         val now = clock.nowUtcMillis()
         val from = logic.nowMs
         if (now - from < 60_000L) return
+        if (logic.flow.flow == FlowState.Incubation) {
+            logic.catchUpEgg(cu, from, now, welcomeMinMinutes)
+            return
+        }
+        if (!logic.isPetFlow || logic.pet.hatchMs == 0L) return
         val pet = logic.pet
         val before = pet.needs.values.copyOf()
         val crumbsBefore = pet.needs.crumbs
@@ -118,8 +125,15 @@ class SessionController(
         } else {
             save.pet
         }
+        val eggData = if (logic.egg.egg.setMs > 0L) logic.egg.toData() else save.egg
         save = save.copy(
+            flow = logic.flow.flow,
             screen = logic.screens.persistentScreen,
+            keeperId = logic.keeperIds.keeperId,
+            secretId = logic.keeperIds.secretId,
+            look = logic.flow.look,
+            lastLook = logic.flow.lastLook,
+            egg = eggData,
             padPose = padData,
             pet = petData,
             hatchedCount = logic.hatchedCount,

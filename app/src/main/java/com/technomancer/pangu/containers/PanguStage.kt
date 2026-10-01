@@ -38,6 +38,14 @@ import com.technomancer.pangu.app.SessionController
 import com.technomancer.pangu.ecs.components.TagComponent
 import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.ecs.entities.AlienFactory
+import com.technomancer.pangu.ecs.entities.EggFactory
+import com.technomancer.pangu.ecs.systems.EggPresenter
+import com.technomancer.pangu.logic.art.AlienParts
+import com.technomancer.pangu.logic.config.PetConfig
+import com.technomancer.pangu.ui.PanelActions
+import com.technomancer.pangu.ui.PanelState
+import com.technomancer.pangu.ui.eggPieItems
+import com.technomancer.pangu.ui.petPieItems
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.PropFactory
 import com.technomancer.pangu.ecs.entities.ToonMaterial
@@ -84,6 +92,7 @@ fun PanguStage() {
     val loc = remember { ServiceRegistry.resolve<LocService>() }
     val ui = remember { ServiceRegistry.resolve<UiBridge>() }
     val uiConfig = remember { ServiceRegistry.resolve<UiConfig>() }
+    val petConfig = remember { ServiceRegistry.resolve<PetConfig>() }
     val events = remember { ServiceRegistry.resolve<InteractionQueue>() }
     val scene = remember { ServiceRegistry.resolve<SceneHandles>() }
     val haptics = remember { ServiceRegistry.resolve<Haptics>() }
@@ -98,6 +107,15 @@ fun PanguStage() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val scale = UiScale.remember(uiConfig)
     val drag = remember { DragState() }
+    val panelActions = remember {
+        PanelActions(
+            onPrimary = { events.push(InteractionType.UiPrimary) },
+            onSecondary = { events.push(InteractionType.UiSecondary) },
+            onRecenter = { events.push(InteractionType.UiRecenter) },
+            onLook = { events.push(InteractionType.UiLook, it) },
+            onWheel = { events.push(InteractionType.UiWheel, it) },
+        )
+    }
 
     DisposableEffect(lifecycleOwner) {
         haptics.device = hapticDevice
@@ -144,14 +162,16 @@ fun PanguStage() {
             AttachmentPanel(id = PANEL_INFO) {
                 val screen by ui.screen.collectAsState()
                 val pet by ui.pet.collectAsState()
+                val studio by ui.studio.collectAsState()
+                val egg by ui.egg.collectAsState()
+                val counters by ui.counters.collectAsState()
                 InfoPanel(
                     content = ScreenContent.of(screen),
-                    pet = pet,
+                    state = PanelState(pet, studio, egg, counters),
                     loc = loc,
                     scale = scale,
                     showDebug = showDebug,
-                    onPrimary = { events.push(InteractionType.UiPrimary) },
-                    onRecenter = { events.push(InteractionType.UiRecenter) },
+                    actions = panelActions,
                 )
             }
             AttachmentPanel(id = PANEL_HANDLE) {
@@ -161,13 +181,14 @@ fun PanguStage() {
             AttachmentPanel(id = PANEL_PIE) {
                 val screen by ui.screen.collectAsState()
                 val pet by ui.pet.collectAsState()
+                val egg by ui.egg.collectAsState()
                 PieMenu(
-                    visible = screen == ScreenId.C24,
-                    suggested = pet?.suggested.orEmpty(),
+                    visible = screen == ScreenId.C24 || screen == ScreenId.C08,
+                    items = if (screen == ScreenId.C08) eggPieItems(egg?.suggested) else petPieItems(pet?.suggested.orEmpty()),
                     loc = loc,
                     scale = scale,
                     ringRadiusPx = uiConfig.pieRadius / uiConfig.metresPerMockupPx,
-                ) { events.push(InteractionType.UiPie, it.ordinal) }
+                ) { events.push(InteractionType.UiPie, it) }
             }
             AttachmentPanel(id = PANEL_TOAST) {
                 val toast by ui.toast.collectAsState()
@@ -202,11 +223,14 @@ fun PanguStage() {
         // entities must be made on it.
         val meshes = MeshFactory()
         val habitatFactory = HabitatFactory(meshes)
-        val alienFactory = AlienFactory(meshes, AlienFactory.DEFAULT_LOOK)
+        val alienFactory = AlienFactory(meshes)
         val propFactory = PropFactory(meshes)
+        val eggFactory = EggFactory(meshes)
+        val shellColor = logic.catalog.bodyColor(logic.look)
         val alienLoaded = withContext(Dispatchers.Default) {
             habitatFactory.preloadMeshes()
             propFactory.preloadMeshes()
+            eggFactory.preloadMeshes(shellColor)
             runCatching { alienFactory.preload(context.assets) }
                 .onFailure { Log.e(TAG, "Could not load the alien model", it) }
                 .isSuccess
@@ -224,6 +248,14 @@ fun PanguStage() {
         val crumbs = List(MAX_CRUMBS) { i -> propFactory.createCrumb(i).also { habitat.addChild(it) } }
         val beam = propFactory.createBeam().also { habitat.addChild(it) }
         val skyRing = propFactory.createSkyRing().also { habitat.addChild(it) }
+        val eggRig = eggFactory.create(shellColor, alienFactory.tipShapes).also { habitat.addChild(it.root) }
+        val nest = eggFactory.createNestProps(placement.habitatScale).also { props ->
+            habitat.addChild(props.blanket)
+            habitat.addChild(props.drape)
+            props.beads.forEach { habitat.addChild(it) }
+            habitat.addChild(props.pedestal)
+        }
+        val eggPresenter = EggPresenter(eggRig, nest, eggFactory, meshes, placement.habitatScale)
 
         // Soft contact shadows: the pad receives, the pet casts.
         habitat.findEntity("PH_PadTop")?.components?.set(GroundShadowComponent(false, true))
@@ -231,6 +263,7 @@ fun PanguStage() {
         if (rig != null) ToonMaterial.tryApply(rig.root)
         sfx.petEmitter = rig?.root
         sfx.uiEmitter = infoPanel ?: habitat
+        sfx.eggEmitter = eggRig.root
 
         // Toasts and the pause veil follow the head.
         val camera = AnchorEntity(AnchorTarget.createCameraTarget())
@@ -247,9 +280,11 @@ fun PanguStage() {
         scene.presentation = PresentationSystem(
             root,
             habitat,
-            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing),
+            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing, nest.pedestal, eggPresenter),
             uiConfig,
             placement.habitatScale,
+            meshes,
+            petConfig.adultHeight * petConfig.hatchGrowth / AlienParts.MODEL_HEIGHT / placement.habitatScale,
         )
         Log.i(TAG, "Habitat placed at ${logic.padPose?.position} screen=${logic.screens.current} (head ${head?.position})")
     }
