@@ -16,11 +16,12 @@ import java.util.concurrent.ConcurrentHashMap
  * Debug-only performance probe. Every 5 s it logs (tag PanguPerf) the frame System's update time
  * (average and worst), objects allocated per update, the triangles and materials of everything
  * currently shown, and the last catch-up and microphone timings. Cold start is logged once, from
- * process start to the habitat being placed. Does nothing in release builds.
+ * process start to the habitat being placed. Debug builds only: release builds get a no-op
+ * PerfProbe with the same members from src/release.
  */
 class PerfProbe(private val enabled: Boolean) {
-    /** Triangle count per uploaded mesh, filled by the mesh factory. */
-    val triangles = ConcurrentHashMap<MeshResource, Int>()
+    /** Triangle count per uploaded mesh. */
+    private val triangles = ConcurrentHashMap<MeshResource, Int>()
 
     /** The scene root to measure; set when the Stage is built. */
     var root: Entity? = null
@@ -80,6 +81,11 @@ class PerfProbe(private val enabled: Boolean) {
         lastCatchUpMs = (System.nanoTime() - start) / 1e6
         lastCatchUpHours = hours
         return result
+    }
+
+    /** Records the triangle count of an uploaded [mesh]. */
+    fun meshTriangles(mesh: MeshResource, count: Int) {
+        if (enabled) triangles[mesh] = count
     }
 
     /** Logs a mesh upload that took a while: [buildMs] to copy the arrays, [uploadMs] in the SDK. */

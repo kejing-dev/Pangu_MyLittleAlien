@@ -71,7 +71,7 @@ class MeshFactory(private val perf: PerfProbe? = null) {
         }
         val built = System.nanoTime()
         return MeshResource.createWithMeshModel(model, bounds, name).also {
-            perf?.triangles?.put(it, data.triangleCount)
+            perf?.meshTriangles(it, data.triangleCount)
             perf?.meshUploaded(name, data.vertexCount, (built - started) / 1e6, (System.nanoTime() - built) / 1e6)
         }
     }

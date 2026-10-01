@@ -34,3 +34,6 @@ google-services.json
 
 # Spatial Editor build output
 *.bundle
+
+# Release signing (see keystore.properties.example)
+keystore.properties
