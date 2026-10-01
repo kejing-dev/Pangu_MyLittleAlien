@@ -8,6 +8,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -46,7 +48,7 @@ fun VoiceMeter(level: Float, scale: UiScale) {
                 modifier = Modifier
                     .weight(1f)
                     .height(scale.px(h))
-                    .background(if (i < lit) PanelColors.ink else PanelColors.divider, RoundedCornerShape(scale.px(3))),
+                    .background(if (i < lit) PanguTokens.ink else PanguTokens.divider, RoundedCornerShape(scale.px(3))),
             )
         }
     }
@@ -78,7 +80,7 @@ fun PulseLine(active: Boolean, scale: UiScale) {
             x += 2f
         }
         drawPath(path, Accent, style = Stroke(width = 1.8f * w / 360f))
-        drawLine(PanelColors.divider, Offset(0f, mid), Offset(w, mid), strokeWidth = 1f)
+        drawLine(PanguTokens.divider, Offset(0f, mid), Offset(w, mid), strokeWidth = 1f)
     }
 }
 
@@ -95,23 +97,23 @@ fun PersonalityBlock(p: PersonalityUi, loc: LocService, scale: UiScale) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PanelColors.cream, RoundedCornerShape(scale.px(14)))
+            .background(PanguTokens.cream, RoundedCornerShape(scale.px(14)))
             .padding(horizontal = scale.px(16), vertical = scale.px(12)),
     ) {
-        Text(text = "${loc.get("ui.quirk")} · $line", color = PanelColors.body, fontSize = scale.sp(16f))
+        Text(text = "${loc.get("ui.quirk")} · $line", color = PanguTokens.body, fontSize = scale.sp(16f))
     }
     p.scores.forEachIndexed { i, score ->
         val up = !p.neutral && i == p.up
         val down = !p.neutral && i == p.down
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = loc.get("ui.axes.$i"), color = PanelColors.ink, fontSize = scale.sp(15f), fontWeight = FontWeight.Bold, modifier = Modifier.width(scale.px(70)))
+            Text(text = loc.get("ui.axes.$i"), color = PanguTokens.ink, fontSize = scale.sp(15f), fontWeight = FontWeight.Bold, modifier = Modifier.width(scale.px(70)))
             val shape = RoundedCornerShape(scale.px(7))
             Box(modifier = Modifier.weight(1f).height(scale.px(14)).background(Color.White, shape)) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth((score / MAX_SCORE).coerceIn(0.03f, 1f))
                         .height(scale.px(14))
-                        .background(if (up) PanelColors.ink else DuskBlue, shape),
+                        .background(if (up) PanguTokens.ink else DuskBlue, shape),
                 )
             }
             Text(
@@ -120,8 +122,9 @@ fun PersonalityBlock(p: PersonalityUi, loc: LocService, scale: UiScale) {
                     down -> "▼"
                     else -> ""
                 },
-                color = PanelColors.ink,
+                color = PanguTokens.ink,
                 fontSize = scale.sp(14f),
+                fontFamily = LocalPanguFonts.current.glyph,
                 modifier = Modifier.width(scale.px(26)).padding(start = scale.px(8)),
             )
         }
@@ -135,3 +138,41 @@ private const val FULL_LEVEL = 0.12f
 
 /** Highest possible axis score: 255 imprint + 63 baseline. */
 private const val MAX_SCORE = 318f
+
+/** One row of a step list: what happens now and what comes next, as in the product mockup. */
+class StepRow(val glyph: String, val titleKey: String, val descKey: String, val tag: String, val active: Boolean)
+
+/** A short list of stages with a tag on the right ("now", "next", "✓" or a progress label); the current one is highlighted. */
+@Composable
+fun StepsBlock(rows: List<StepRow>, loc: LocService, scale: UiScale) {
+    val fonts = LocalPanguFonts.current
+    rows.forEach { row ->
+        val shape = RoundedCornerShape(scale.px(16))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (row.active) PanguTokens.cream else PanguTokens.paper, shape)
+                .border(scale.px(PanguTokens.BORDER), if (row.active) PanguTokens.ink else PanguTokens.divider, shape)
+                .padding(horizontal = scale.px(14), vertical = scale.px(10)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = row.glyph, color = PanguTokens.ink, fontSize = scale.sp(22f), fontFamily = fonts.glyph, modifier = Modifier.width(scale.px(34)))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = loc.get(row.titleKey), color = PanguTokens.ink, fontSize = scale.sp(16f), fontWeight = FontWeight.Bold)
+                Text(text = loc.get(row.descKey), color = PanguTokens.muted, fontSize = scale.sp(PanguTokens.SMALL))
+            }
+            if (row.tag.isNotEmpty()) {
+                val tagShape = RoundedCornerShape(scale.px(10))
+                Box(
+                    modifier = Modifier
+                        .padding(start = scale.px(8))
+                        .background(if (row.active) PanguTokens.ink else PanguTokens.paper, tagShape)
+                        .border(scale.px(PanguTokens.BORDER), PanguTokens.ink, tagShape)
+                        .padding(horizontal = scale.px(8), vertical = scale.px(2)),
+                ) {
+                    Text(text = row.tag, color = if (row.active) PanguTokens.paper else PanguTokens.ink, fontSize = scale.sp(13f), fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}

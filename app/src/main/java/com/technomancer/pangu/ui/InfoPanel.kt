@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.pico.spatial.ui.foundation.hover.spatialHoverEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +14,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import com.technomancer.pangu.logic.loc.Language
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,19 +45,6 @@ import com.technomancer.pangu.logic.pet.NeedBand
 import com.technomancer.pangu.logic.pet.NeedBar
 import com.technomancer.pangu.logic.loc.LocService
 
-/** Colours from the mockup. The full panel styling arrives with the mockup look pass. */
-object PanelColors {
-    val ink = Color(0xFF2F2826)
-    val paper = Color(0xFFF7F3EB)
-    val cream = Color(0xFFF2ECE1)
-    val body = Color(0xFF4F4641)
-    val muted = Color(0xFF6B615B)
-    val divider = Color(0xFFE2D9CC)
-    val padSide = Color(0xFFDDD3C4)
-    val nest = Color(0xFFE7D6BF)
-    val butter = Color(0xFFF2DE9B)
-}
-
 /** Everything the info panel can show besides the screen itself. */
 class PanelState(
     val pet: PetUi?,
@@ -59,6 +55,7 @@ class PanelState(
     val micLevel: Float = 0f,
     /** Show the debug "Complete step" button on ritual panels. */
     val assist: Boolean = false,
+    val settings: SettingsUi? = null,
 )
 
 /** What the panel's buttons and pickers report. */
@@ -70,12 +67,18 @@ class PanelActions(
     val onWheel: (Int) -> Unit,
     val onInfo: () -> Unit = {},
     val onAssist: () -> Unit = {},
+    val onSettings: () -> Unit = {},
+    val onLanguage: (Language) -> Unit = {},
+    val onVolume: (Int) -> Unit = {},
+    val onSound: (Boolean) -> Unit = {},
+    val onHaptics: (Boolean) -> Unit = {},
+    val onQuit: () -> Unit = {},
 )
 
 /**
  * The info panel beside the habitat: optional illustration, title, body, a kind-specific block
- * and the primary and secondary buttons. [content] is null for screens that have no panel yet;
- * debug builds then show only the debug row.
+ * and the primary and secondary buttons, with the gesture hint chip under its bottom-left corner.
+ * [content] is null for screens that have no panel.
  */
 @Composable
 fun InfoPanel(
@@ -83,34 +86,38 @@ fun InfoPanel(
     state: PanelState,
     loc: LocService,
     scale: UiScale,
-    showDebug: Boolean,
     actions: PanelActions,
 ) {
-    if (content == null && !showDebug) return
-    val shape = RoundedCornerShape(scale.px(30), scale.px(26), scale.px(32), scale.px(24))
+    if (content == null) return
+    val shape = PanguTokens.panelShape(scale)
     val pet = state.pet
     val egg = state.egg
     val name = when {
         content != null && content.id.ordinal < ScreenId.C22.ordinal -> state.studio?.name ?: egg?.name ?: pet?.name ?: ""
         else -> pet?.name ?: ""
     }
-    Column(
-        modifier = Modifier
-            .width(scale.px(420))
-            .background(PanelColors.paper, shape)
-            .border(scale.px(1.5f), PanelColors.ink, shape)
-            .padding(horizontal = scale.px(30), vertical = scale.px(28)),
-        verticalArrangement = Arrangement.spacedBy(scale.px(14)),
-    ) {
-        if (content != null) {
+    Column(verticalArrangement = Arrangement.spacedBy(scale.px(12))) {
+        // The panel is weighted so the hint chip below it is measured first and never squeezed.
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .width(scale.px(PanguTokens.PANEL_WIDTH))
+                .shadow(scale.px(PanguTokens.SHADOW_Y), shape, ambientColor = PanguTokens.shadow, spotColor = PanguTokens.shadow)
+                .background(PanguTokens.paper, shape)
+                .border(scale.px(PanguTokens.BORDER), PanguTokens.ink, shape)
+                .padding(horizontal = scale.px(PanguTokens.PANEL_PAD_X), vertical = scale.px(PanguTokens.PANEL_PAD_Y)),
+            verticalArrangement = Arrangement.spacedBy(scale.px(PanguTokens.PANEL_GAP)),
+        ) {
             if (content.kind == PanelKind.Hab) HabitatIllustration(scale)
-            if (content.kind == PanelKind.Needs && pet != null) NeedsBlock(pet, loc, scale, actions.onInfo)
+            if (content.kind == PanelKind.Needs && pet != null) NeedsBlock(pet, loc, scale, actions.onInfo, actions.onSettings, actions.onQuit)
             content.titleKey?.let {
-                Text(text = titleText(content, it, name, egg, pet, loc), color = PanelColors.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
+                Text(text = titleText(content, it, name, egg, pet, loc), color = PanguTokens.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
             }
             bodyText(content, pet, egg, name, loc)?.let {
-                Text(text = it, color = PanelColors.body, fontSize = scale.sp(18f))
+                Text(text = it, color = PanguTokens.body, fontSize = scale.sp(18f))
             }
+            if (content.kind == PanelKind.Lang) LangBlock(state.settings?.language ?: loc.language, loc, scale, actions.onLanguage)
+            if (content.kind == PanelKind.Settings && state.settings != null) SettingsBlock(state.settings, loc, scale, actions)
             if (content.kind == PanelKind.Look && state.studio != null) LookBlock(state.studio, loc, scale, actions.onLook)
             if (content.kind == PanelKind.Name && state.studio != null) NameBlock(state.studio, scale, actions.onWheel)
             if (content.kind == PanelKind.Prog && pet != null) {
@@ -125,8 +132,6 @@ fun InfoPanel(
                 when (content.id) {
                     ScreenId.C06 -> ProgressBlock(egg.sealSec, egg.sealTotal, loc.format("fmt.sec", "a" to egg.sealSec, "b" to egg.sealTotal), scale)
                     ScreenId.C09 -> ProgressBlock(egg.holdSec, egg.holdTotal, loc.format("fmt.sec", "a" to egg.holdSec, "b" to egg.holdTotal), scale)
-                    ScreenId.C20 -> ProgressBlock(egg.taps, egg.tapsTotal, loc.format("fmt.taps", "a" to egg.taps, "b" to egg.tapsTotal), scale)
-                    ScreenId.C21 -> ProgressBlock(egg.hatchSec, egg.hatchTotal, loc.format("fmt.sec", "a" to egg.hatchSec, "b" to egg.hatchTotal), scale)
                     ScreenId.C12 -> {
                         ProgressBlock(egg.singSec, egg.singTotal, loc.format("fmt.sec", "a" to egg.singSec, "b" to egg.singTotal), scale)
                         VoiceMeter(state.micLevel, scale)
@@ -142,7 +147,13 @@ fun InfoPanel(
                 if (state.assist && content.id in ASSISTED) PillButton(loc.get("debug.complete"), scale, primary = false, onClick = actions.onAssist)
             }
             if (content.kind == PanelKind.Pers) pet?.personality?.let { PersonalityBlock(it, loc, scale) }
-            if (content.id == ScreenId.C07 && egg != null) KeyValueRows(eggRows(egg, loc), scale)
+            stepRows(content.id, egg, loc)?.let { StepsBlock(it, loc, scale) }
+            if (content.id == ScreenId.C07 && egg != null) {
+                KeyValueRows(eggRows(egg, loc), scale)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    HeaderButtons(scale, null, actions.onSettings, actions.onQuit)
+                }
+            }
             if (content.id == ScreenId.C35) {
                 if (egg?.awayBands != null) KeyValueRows(eggAwayRows(egg, loc), scale) else if (pet != null) AwayRows(pet, loc, scale)
             }
@@ -150,14 +161,83 @@ fun InfoPanel(
             primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = actions.onPrimary) }
             content.secondaryKey?.let { PillButton(loc.get(it), scale, primary = false, onClick = actions.onSecondary) }
             if (content.id == ScreenId.C22) pet?.personality?.let {
-                Text(text = loc.format("fmt.eggCode", "code" to it.eggCode), color = PanelColors.muted, fontSize = scale.sp(14f))
+                Text(text = loc.format("fmt.eggCode", "code" to it.eggCode), color = PanguTokens.muted, fontSize = scale.sp(14f))
             }
             if (content.id == ScreenId.C33 || content.id == ScreenId.C19) {
                 val (h, r, w) = state.counters
-                Text(text = loc.format("fmt.counters", "h" to h, "r" to r, "w" to w), color = PanelColors.muted, fontSize = scale.sp(15f))
+                Text(text = loc.format("fmt.counters", "h" to h, "r" to r, "w" to w), color = PanguTokens.muted, fontSize = scale.sp(15f))
             }
         }
-        if (showDebug) PillButton(loc.get("debug.recenter"), scale, primary = false, onClick = actions.onRecenter)
+        HintChip(HINT_GLYPHS[content.hint.key.substringAfterLast('.')] ?: "○", loc.get(content.hint.key), scale)
+    }
+}
+
+/** The round ⚙ button that opens Settings. */
+@Composable
+private fun SettingsButton(scale: UiScale, onClick: () -> Unit) = RoundIconButton(scale, onClick) {
+    // A gear drawn by hand, so it sits exactly in the middle whatever the fonts are.
+    val c = center
+    val r = size.minDimension / 2f
+    val stroke = r * 0.16f
+    for (i in 0 until 8) {
+        val a = i * PI.toFloat() / 4f
+        val dir = Offset(cos(a), sin(a))
+        drawLine(PanguTokens.ink, c + dir * (r * 0.62f), c + dir * (r * 0.92f), strokeWidth = r * 0.24f, cap = StrokeCap.Butt)
+    }
+    drawCircle(PanguTokens.ink, radius = r * 0.62f, center = c, style = Stroke(width = stroke))
+    drawCircle(PanguTokens.ink, radius = r * 0.2f, center = c, style = Stroke(width = stroke))
+}
+
+/** The round × button that saves and closes Pangu. */
+@Composable
+private fun CloseAppButton(scale: UiScale, onClick: () -> Unit) = RoundIconButton(scale, onClick, filled = true) {
+    val r = size.minDimension / 2f
+    val d = r * 0.62f
+    val w = r * 0.2f
+    drawLine(PanguTokens.paper, center + Offset(-d, -d), center + Offset(d, d), strokeWidth = w, cap = StrokeCap.Round)
+    drawLine(PanguTokens.paper, center + Offset(-d, d), center + Offset(d, -d), strokeWidth = w, cap = StrokeCap.Round)
+}
+
+/** The ?, ⚙ and × buttons with even gaps between them. [onInfo] null leaves out the ?. */
+@Composable
+private fun HeaderButtons(scale: UiScale, onInfo: (() -> Unit)?, onSettings: () -> Unit, onQuit: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(scale.px(HEADER_GAP)), verticalAlignment = Alignment.CenterVertically) {
+        if (onInfo != null) {
+            Box(
+                modifier = Modifier
+                    .size(scale.px(HEADER_BUTTON))
+                    .background(PanguTokens.paper, CircleShape)
+                    .border(scale.px(PanguTokens.BORDER), PanguTokens.ink, CircleShape)
+                    .spatialHoverEffect()
+                    .clickable(onClick = onInfo),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "?", color = PanguTokens.ink, fontSize = scale.sp(16f), fontWeight = FontWeight.Bold)
+            }
+        }
+        SettingsButton(scale, onSettings)
+        CloseAppButton(scale, onQuit)
+    }
+}
+
+/** Size of the round header buttons and their icons, and the gap between them (mockup px). */
+private const val HEADER_BUTTON = 32
+private const val HEADER_ICON = 15
+private const val HEADER_GAP = 10
+
+/** A small round button with an ink ring (ink-filled when [filled]) and a drawn icon in its middle. */
+@Composable
+private fun RoundIconButton(scale: UiScale, onClick: () -> Unit, filled: Boolean = false, icon: DrawScope.() -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(scale.px(HEADER_BUTTON))
+            .background(if (filled) PanguTokens.ink else PanguTokens.paper, CircleShape)
+            .border(scale.px(PanguTokens.BORDER), PanguTokens.ink, CircleShape)
+            .spatialHoverEffect()
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(scale.px(HEADER_ICON)), onDraw = icon)
     }
 }
 
@@ -167,6 +247,34 @@ private fun titleText(content: ScreenContent, key: String, name: String, egg: Eg
     ScreenId.C16 -> loc.get(key).replace("<action>", loc.get("ui.egg6.${egg?.cappedAction?.ordinal ?: 0}"))
     ScreenId.C22 -> loc.format(key, "name" to name).replace("<nature>", loc.get("nature.${pet?.personality?.natureIndex ?: 6}"))
     else -> loc.format(key, "name" to name)
+}
+
+/**
+ * Stage lists shown on the cards the product mockup draws as steps: what is happening now and
+ * what comes next (Sing choice, cold egg, hatching, a sad pet).
+ */
+private fun stepRows(id: ScreenId, egg: EggUi?, loc: LocService): List<StepRow>? {
+    val now = loc.get("steps.now")
+    val next = loc.get("steps.next")
+    return when (id) {
+        ScreenId.C11 -> listOf(
+            StepRow("♪", "steps.voice.t", "steps.voice.d", "", false),
+            StepRow("♫", "steps.box.t", "steps.box.d", "", false),
+        )
+        ScreenId.C17 -> listOf(StepRow("❄", "steps.chilly.t", "steps.chilly.d", now, true), StepRow("◌", "steps.fading.t", "steps.fading.d", next, false))
+        ScreenId.C18 -> listOf(StepRow("❄", "steps.chilly.t", "steps.chilly.d", "", false), StepRow("◌", "steps.fading.t", "steps.fading.d", now, true))
+        ScreenId.C20 -> listOf(
+            StepRow("☝", "steps.crack.t", "steps.crack.d", egg?.let { loc.format("fmt.taps", "a" to it.taps, "b" to it.tapsTotal) } ?: now, true),
+            StepRow("✦", "steps.hatching.t", "steps.hatching.d", next, false),
+        )
+        ScreenId.C21 -> listOf(
+            StepRow("☝", "steps.crack.t", "steps.crack.d", "✓", false),
+            StepRow("✦", "steps.hatching.t", "steps.hatching.d", egg?.let { loc.format("fmt.sec", "a" to it.hatchSec, "b" to it.hatchTotal) } ?: now, true),
+        )
+        ScreenId.C31 -> listOf(StepRow("◡", "steps.mopey.t", "steps.mopey.d", now, true), StepRow("✦", "steps.homesick.t", "steps.homesick.d", next, false))
+        ScreenId.C32 -> listOf(StepRow("◡", "steps.mopey.t", "steps.mopey.d", "", false), StepRow("✦", "steps.homesick.t", "steps.homesick.d", now, true))
+        else -> null
+    }
 }
 
 /** Ritual panels that get the debug "Complete step" button in the Emulator. */
@@ -220,43 +328,36 @@ private fun AwayRows(pet: PetUi, loc: LocService, scale: UiScale) {
         if (pet.awayCrumbs > 0) listOf(loc.get("scr.C35.r.crumbs") to pet.awayCrumbs.toString()) else emptyList()
     rows.forEach { (key, value) ->
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = key, color = PanelColors.muted, fontSize = scale.sp(16f), modifier = Modifier.weight(1f))
-            Text(text = value, color = PanelColors.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
+            Text(text = key, color = PanguTokens.muted, fontSize = scale.sp(16f), modifier = Modifier.weight(1f))
+            Text(text = value, color = PanguTokens.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
         }
-        Box(modifier = Modifier.fillMaxWidth().height(scale.px(1.5f)).background(PanelColors.divider))
+        Box(modifier = Modifier.fillMaxWidth().height(scale.px(1.5f)).background(PanguTokens.divider))
     }
 }
 
 /** C23: name, mood chip, a "?" that reopens the personality card, and the six need bars. */
 @Composable
-private fun NeedsBlock(pet: PetUi, loc: LocService, scale: UiScale, onInfo: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text = pet.name, color = PanelColors.ink, fontSize = scale.sp(29f), fontWeight = FontWeight.SemiBold)
-        Box(
-            modifier = Modifier
-                .padding(start = scale.px(12))
-                .background(PanelColors.butter, RoundedCornerShape(scale.px(12)))
-                .padding(horizontal = scale.px(10), vertical = scale.px(4)),
-        ) {
-            Text(text = loc.get("mood.${pet.mood.name.lowercase()}"), color = PanelColors.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
+private fun NeedsBlock(pet: PetUi, loc: LocService, scale: UiScale, onInfo: () -> Unit, onSettings: () -> Unit, onQuit: () -> Unit) {
+    // The name and the three round buttons share one row, centred on each other; the mood tag sits under the name.
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = pet.name, color = PanguTokens.ink, fontSize = scale.sp(29f), fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+            HeaderButtons(scale, onInfo, onSettings, onQuit)
         }
-        Box(modifier = Modifier.weight(1f))
         Box(
             modifier = Modifier
-                .size(scale.px(40))
-                .background(PanelColors.paper, CircleShape)
-                .border(scale.px(1.5f), PanelColors.ink, CircleShape)
-                .clickable(onClick = onInfo),
-            contentAlignment = Alignment.Center,
+                .padding(top = scale.px(4))
+                .background(PanguTokens.butter, RoundedCornerShape(scale.px(9)))
+                .padding(horizontal = scale.px(8), vertical = scale.px(2)),
         ) {
-            Text(text = "?", color = PanelColors.ink, fontSize = scale.sp(20f), fontWeight = FontWeight.Bold)
+            Text(text = loc.get("mood.${pet.mood.name.lowercase()}"), color = PanguTokens.ink, fontSize = scale.sp(13f), fontWeight = FontWeight.Bold)
         }
     }
     Need.entries.forEachIndexed { i, need ->
         val value = pet.needs.getOrElse(i) { 0 }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = NEED_GLYPHS[i], color = PanelColors.ink, fontSize = scale.sp(18f), modifier = Modifier.width(scale.px(26)))
-            Text(text = loc.get("ui.needs.${need.ordinal}"), color = PanelColors.ink, fontSize = scale.sp(16f), fontWeight = FontWeight.Bold, modifier = Modifier.width(scale.px(84)))
+            Text(text = NEED_GLYPHS[i], color = PanguTokens.ink, fontSize = scale.sp(18f), fontFamily = LocalPanguFonts.current.glyph, modifier = Modifier.width(scale.px(26)))
+            Text(text = loc.get("ui.needs.${need.ordinal}"), color = PanguTokens.ink, fontSize = scale.sp(16f), fontWeight = FontWeight.Bold, modifier = Modifier.width(scale.px(84)))
             NeedBarView(value, scale)
         }
     }
@@ -271,7 +372,7 @@ private fun NeedBarView(value: Int, scale: UiScale) {
             .fillMaxWidth()
             .height(scale.px(20))
             .background(Color.White, shape)
-            .border(scale.px(1.5f), PanelColors.ink, shape),
+            .border(scale.px(1.5f), PanguTokens.ink, shape),
     ) {
         Box(
             modifier = Modifier
@@ -284,7 +385,7 @@ private fun NeedBarView(value: Int, scale: UiScale) {
 
 private fun bandColor(value: Int): Color = when (NeedBar.band(value.toFloat())) {
     NeedBand.Good -> Color(0xFFBFD3AE)
-    NeedBand.Low -> PanelColors.butter
+    NeedBand.Low -> PanguTokens.butter
     NeedBand.Critical -> Color(0xFFD9644F)
 }
 
@@ -292,10 +393,10 @@ private fun bandColor(value: Int): Color = when (NeedBar.band(value.toFloat())) 
 @Composable
 private fun ProgressBlock(done: Int, total: Int, label: String, scale: UiScale) {
     val shape = RoundedCornerShape(scale.px(8))
-    Box(modifier = Modifier.fillMaxWidth().height(scale.px(16)).border(scale.px(1.5f), PanelColors.ink, shape)) {
-        Box(modifier = Modifier.fillMaxWidth((done.toFloat() / total).coerceIn(0f, 1f)).height(scale.px(16)).background(PanelColors.ink, shape))
+    Box(modifier = Modifier.fillMaxWidth().height(scale.px(16)).border(scale.px(1.5f), PanguTokens.ink, shape)) {
+        Box(modifier = Modifier.fillMaxWidth((done.toFloat() / total).coerceIn(0f, 1f)).height(scale.px(16)).background(PanguTokens.ink, shape))
     }
-    Text(text = label, color = PanelColors.muted, fontSize = scale.sp(14f))
+    Text(text = label, color = PanguTokens.muted, fontSize = scale.sp(PanguTokens.MONO), fontFamily = LocalPanguFonts.current.mono)
 }
 
 private val NEED_GLYPHS = listOf("●", "☾", "≈", "♫", "♡", "✧")
@@ -306,15 +407,16 @@ private fun PillButton(label: String, scale: UiScale, primary: Boolean, onClick:
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = scale.px(54))
-            .background(if (primary) PanelColors.ink else PanelColors.paper, shape)
-            .border(scale.px(1.5f), PanelColors.ink, shape)
+            .requiredHeightIn(min = scale.px(54))
+            .background(if (primary) PanguTokens.ink else PanguTokens.paper, shape)
+            .border(scale.px(1.5f), PanguTokens.ink, shape)
+            .spatialHoverEffect()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            color = if (primary) PanelColors.paper else PanelColors.ink,
+            color = if (primary) PanguTokens.paper else PanguTokens.ink,
             fontSize = scale.sp(18f),
             fontWeight = FontWeight.SemiBold,
         )
@@ -330,20 +432,20 @@ private fun HabitatIllustration(scale: UiScale) {
         val stroke = Stroke(width = 1.5f * w / 358f)
         val pad = Size(w * 0.62f, h * 0.62f)
         val padTopLeft = Offset((w - pad.width) / 2f, (h - pad.height) / 2f)
-        drawOval(PanelColors.padSide, padTopLeft + Offset(0f, h * 0.04f), pad)
-        drawOval(PanelColors.paper, padTopLeft, pad)
-        drawOval(PanelColors.ink, padTopLeft, pad, style = stroke)
+        drawOval(PanguTokens.padSide, padTopLeft + Offset(0f, h * 0.04f), pad)
+        drawOval(PanguTokens.paper, padTopLeft, pad)
+        drawOval(PanguTokens.ink, padTopLeft, pad, style = stroke)
         val nest = Size(pad.width * 0.36f, pad.height * 0.36f)
-        drawOval(PanelColors.nest, Offset((w - nest.width) / 2f, (h - nest.height) / 2f), nest, style = Stroke(width = nest.width * 0.08f))
+        drawOval(PanguTokens.nest, Offset((w - nest.width) / 2f, (h - nest.height) / 2f), nest, style = Stroke(width = nest.width * 0.08f))
         val egg = Size(nest.width * 0.34f, nest.height * 0.5f)
-        drawOval(PanelColors.cream, Offset((w - egg.width) / 2f, h / 2f - egg.height * 0.8f), egg)
-        drawOval(PanelColors.ink, Offset((w - egg.width) / 2f, h / 2f - egg.height * 0.8f), egg, style = stroke)
+        drawOval(PanguTokens.cream, Offset((w - egg.width) / 2f, h / 2f - egg.height * 0.8f), egg)
+        drawOval(PanguTokens.ink, Offset((w - egg.width) / 2f, h / 2f - egg.height * 0.8f), egg, style = stroke)
         val lamp = Offset(padTopLeft.x + pad.width * 0.18f, h / 2f)
-        drawCircle(PanelColors.ink, radius = w * 0.022f, center = lamp)
-        drawCircle(PanelColors.butter, radius = w * 0.016f, center = lamp - Offset(0f, h * 0.18f))
-        drawLine(PanelColors.ink, lamp, lamp - Offset(0f, h * 0.16f), strokeWidth = stroke.width)
+        drawCircle(PanguTokens.ink, radius = w * 0.022f, center = lamp)
+        drawCircle(PanguTokens.butter, radius = w * 0.016f, center = lamp - Offset(0f, h * 0.18f))
+        drawLine(PanguTokens.ink, lamp, lamp - Offset(0f, h * 0.16f), strokeWidth = stroke.width)
         val handle = Offset(padTopLeft.x + pad.width + w * 0.03f, h / 2f)
-        drawCircle(PanelColors.butter.copy(alpha = 0.6f), radius = w * 0.04f, center = handle)
-        drawCircle(PanelColors.ink, radius = w * 0.022f, center = handle, style = stroke)
+        drawCircle(PanguTokens.butter.copy(alpha = 0.6f), radius = w * 0.04f, center = handle)
+        drawCircle(PanguTokens.ink, radius = w * 0.022f, center = handle, style = stroke)
     }
 }

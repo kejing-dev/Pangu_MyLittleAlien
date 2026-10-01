@@ -947,6 +947,82 @@
   {
    "k": "debug.complete",
    "v": "Completar paso (depuración)"
+  },
+  {
+   "k": "steps.now",
+   "v": "ahora"
+  },
+  {
+   "k": "steps.next",
+   "v": "luego"
+  },
+  {
+   "k": "steps.voice.t",
+   "v": "Tu voz"
+  },
+  {
+   "k": "steps.voice.d",
+   "v": "Tararea o canta cerca del huevo 10 s."
+  },
+  {
+   "k": "steps.box.t",
+   "v": "Caja de música"
+  },
+  {
+   "k": "steps.box.d",
+   "v": "¿Sin micro? Gira la manivela y suena una nana."
+  },
+  {
+   "k": "steps.chilly.t",
+   "v": "Frío"
+  },
+  {
+   "k": "steps.chilly.d",
+   "v": "Escarcha y temblor cuando el calor baja."
+  },
+  {
+   "k": "steps.fading.t",
+   "v": "Apagándose"
+  },
+  {
+   "k": "steps.fading.d",
+   "v": "Tras un día a cero pierde color. Caliéntalo en 24 h para recuperarlo."
+  },
+  {
+   "k": "steps.crack.t",
+   "v": "Rómpelo"
+  },
+  {
+   "k": "steps.crack.d",
+   "v": "Toca la cáscara 5 veces."
+  },
+  {
+   "k": "steps.hatching.t",
+   "v": "Naciendo"
+  },
+  {
+   "k": "steps.hatching.d",
+   "v": "La cáscara se abre y la parte de arriba se levanta."
+  },
+  {
+   "k": "steps.mopey.t",
+   "v": "Desanimado"
+  },
+  {
+   "k": "steps.mopey.d",
+   "v": "Lleva un rato con las necesidades bajas. Un bocado y un mimo ayudan."
+  },
+  {
+   "k": "steps.homesick.t",
+   "v": "Nostalgia"
+  },
+  {
+   "k": "steps.homesick.d",
+   "v": "No deja de mirar al cielo. Anímalo pronto o podría volver a casa."
+  },
+  {
+   "k": "settings.quit",
+   "v": "Cerrar Pangu"
   }
  ]
 }

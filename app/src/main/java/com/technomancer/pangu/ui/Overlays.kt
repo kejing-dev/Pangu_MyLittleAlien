@@ -18,7 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import com.pico.spatial.ui.design.Text
 import com.technomancer.pangu.logic.loc.LocService
@@ -37,10 +40,10 @@ fun Toast(request: ToastRequest?, loc: LocService, scale: UiScale, durationSec: 
     if (!visible || request == null) return
     Box(
         modifier = Modifier
-            .background(PanelColors.ink, RoundedCornerShape(scale.px(22)))
+            .background(PanguTokens.ink, RoundedCornerShape(scale.px(22)))
             .padding(horizontal = scale.px(24), vertical = scale.px(12)),
     ) {
-        Text(text = loc.get(request.key), color = PanelColors.paper, fontSize = scale.sp(18f), fontWeight = FontWeight.Bold)
+        Text(text = loc.get(request.key), color = PanguTokens.paper, fontSize = scale.sp(18f), fontWeight = FontWeight.Bold)
     }
 }
 
@@ -58,22 +61,22 @@ fun PauseDim(paused: Boolean, loc: LocService, scale: UiScale) {
             Box(
                 modifier = Modifier
                     .size(scale.px(155))
-                    .background(PanelColors.paper, CircleShape)
-                    .border(scale.px(2), PanelColors.ink, CircleShape),
+                    .background(PanguTokens.paper, CircleShape)
+                    .border(scale.px(2), PanguTokens.ink, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "❚❚", color = PanelColors.ink, fontSize = scale.sp(44f))
+                Text(text = "❚❚", color = PanguTokens.ink, fontSize = scale.sp(44f), fontFamily = LocalPanguFonts.current.glyph)
             }
             Text(
                 text = loc.get("scr.C34.t"),
-                color = PanelColors.paper,
+                color = PanguTokens.paper,
                 fontSize = scale.sp(26f),
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = scale.px(20)),
             )
             Text(
                 text = loc.get("scr.C34.b"),
-                color = PanelColors.paper,
+                color = PanguTokens.paper,
                 fontSize = scale.sp(18f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = scale.px(8)).size(scale.px(520), scale.px(80)),
@@ -90,19 +93,22 @@ fun HandleLabel(visible: Boolean, loc: LocService, scale: UiScale) {
         Box(
             modifier = Modifier
                 .width(scale.px(230))
-                .background(PanelColors.butter, RoundedCornerShape(scale.px(16)))
-                .border(scale.px(1.5f), PanelColors.ink, RoundedCornerShape(scale.px(16)))
+                .background(PanguTokens.butter, RoundedCornerShape(scale.px(16)))
+                .border(scale.px(1.5f), PanguTokens.ink, RoundedCornerShape(scale.px(16)))
                 .padding(horizontal = scale.px(14), vertical = scale.px(8)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "✊ " + loc.get("hint.handle"),
-                color = PanelColors.ink,
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontFamily = LocalPanguFonts.current.glyph)) { append("✊ ") }
+                    append(loc.get("hint.handle"))
+                },
+                color = PanguTokens.ink,
                 fontSize = scale.sp(18f),
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
             )
         }
-        Text(text = "▼", color = PanelColors.ink, fontSize = scale.sp(18f))
+        Text(text = "▼", color = PanguTokens.ink, fontSize = scale.sp(18f), fontFamily = LocalPanguFonts.current.glyph)
     }
 }

@@ -33,6 +33,7 @@ import com.technomancer.pangu.logic.input.InteractionQueue
 import com.technomancer.pangu.logic.input.InteractionType
 import com.technomancer.pangu.logic.input.LookPick
 import com.technomancer.pangu.logic.input.TargetId
+import com.technomancer.pangu.logic.loc.Language
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.pet.AwaySummary
@@ -110,6 +111,12 @@ class PanguLogic(
     val egg = EggWorld(incubationConfig, this, placement.habitatScale)
     private val calculator = PersonalityCalculator(personalityConfig)
     private var pieIdleSec = 0f
+
+    /** Settings: language, volume 0..100, sound and haptics. The app applies them each frame. */
+    var language: Language = Language.En
+    var volume: Int = 70
+    var soundOn: Boolean = true
+    var hapticsOn: Boolean = true
 
     /** How the player sings to the egg; asked the first time Sing is chosen. */
     var micChoice: MicChoice = MicChoice.Unknown
@@ -333,16 +340,31 @@ class PanguLogic(
             InteractionType.DragMove -> onDragMove(e, input, dt)
             InteractionType.DragEnd -> onDragEnd(e)
             InteractionType.Tap -> onTap(e.target)
-            InteractionType.UiPrimary -> onPrimary()
+            InteractionType.UiPrimary -> if (screens.current == ScreenId.C36) screens.closeSettings() else onPrimary()
             InteractionType.UiSecondary -> onSecondary()
-            InteractionType.UiRecenter -> {
+            InteractionType.UiRecenter -> recenter(input)
+            InteractionType.UiSettings -> {
                 haptic = HapticCue.UiPress
-                padPose = if (input.headValid) {
-                    placement.defaultPose(input.headPosition, input.headRotation)
-                } else {
-                    placement.fallbackPose()
-                }
-                screens.recenter()
+                sounds += Sfx.UiTick
+                screens.openSettings()
+            }
+            InteractionType.UiLanguage -> {
+                Language.entries.getOrNull(e.target)?.let { language = it }
+                haptic = HapticCue.UiPress
+                sounds += Sfx.UiTick
+                saveRequested = true
+            }
+            InteractionType.UiVolume -> {
+                volume = e.target.coerceIn(0, 100)
+                saveRequested = true
+            }
+            InteractionType.UiSound -> {
+                soundOn = e.target == 1
+                saveRequested = true
+            }
+            InteractionType.UiHaptics -> {
+                hapticsOn = e.target == 1
+                saveRequested = true
             }
             InteractionType.UiPie -> if (screens.current == ScreenId.C08) {
                 chooseEgg(EggAction.entries.getOrNull(e.target))
@@ -365,7 +387,8 @@ class PanguLogic(
 
     private fun onDragStart(target: Int) {
         when {
-            target == TargetId.PAD_HANDLE && screens.isPlacingPad -> {
+            // The handle moves the habitat at any time; the new spot is saved when it is let go.
+            target == TargetId.PAD_HANDLE && padPose != null -> {
                 isDraggingPad = true
                 haptic = HapticCue.Grab
             }
@@ -397,7 +420,7 @@ class PanguLogic(
             e.target == TargetId.PAD_HANDLE && isDraggingPad -> {
                 val pad = padPose ?: return
                 val head = if (input.headValid) input.headPosition else pad.position
-                padPose = placement.drag(pad, e.delta, head)
+                padPose = placement.drag(pad, e.delta, head, e.viaRay)
             }
             e.target == TargetId.EGG -> egg.moveEgg(toPadLocalDirection(e.delta))
             e.target == TargetId.BLANKET -> egg.moveBlanket(toPadLocalDirection(e.delta))
@@ -438,7 +461,6 @@ class PanguLogic(
         haptic = HapticCue.UiPress
         sounds += Sfx.UiConfirm
         when (screens.current) {
-            ScreenId.C01 -> flow.continueFromLanguage()
             ScreenId.C03 -> flow.toName()
             ScreenId.C04 -> flow.toConfirm()
             ScreenId.C05 -> setEgg()
@@ -492,6 +514,7 @@ class PanguLogic(
             }
             ScreenId.C04 -> flow.backToLook()
             ScreenId.C05 -> flow.backToName()
+            ScreenId.C36 -> screens.closeSettings()
             ScreenId.C11 -> onMicAnswer(false)
             else -> Unit
         }
@@ -638,6 +661,17 @@ class PanguLogic(
             EggAction.Sing, EggAction.Listen, EggAction.Polish -> startRitual(action)
             null -> Unit
         }
+    }
+
+    /** Puts the habitat back in front of the player and shows the recenter screen (C37). */
+    private fun recenter(input: InputSnapshot) {
+        haptic = HapticCue.UiPress
+        padPose = if (input.headValid) {
+            placement.defaultPose(input.headPosition, input.headRotation)
+        } else {
+            placement.fallbackPose()
+        }
+        screens.recenter()
     }
 
     /** Starts Sing, Listen or Polish, unless today's count is used up (C16). Sing asks how to sing the first time. */

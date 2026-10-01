@@ -41,4 +41,25 @@ class ScreenMachineTest {
             assertEquals("scr.${id.name}.t", ScreenContent.of(id)!!.titleKey)
         }
     }
+
+    @Test
+    fun firstLaunchC01ContinueC02() {
+        val m = ScreenMachine(ScreenId.C01)
+        assertFalse(m.isPlacingPad)
+        assertEquals(ScreenEffect.None, m.primary())
+        assertEquals(ScreenId.C02, m.current)
+        assertTrue(m.isPlacingPad)
+    }
+
+    @Test
+    fun settingsSitsOnTopAndCloses() {
+        val m = ScreenMachine(ScreenId.C23)
+        m.openSettings()
+        assertEquals(ScreenId.C36, m.current)
+        assertEquals(ScreenId.C23, m.persistentScreen)
+        m.show(ScreenId.C31) // a card arriving underneath
+        assertEquals(ScreenId.C36, m.current)
+        m.closeSettings()
+        assertEquals(ScreenId.C31, m.current)
+    }
 }

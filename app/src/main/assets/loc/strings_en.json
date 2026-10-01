@@ -947,6 +947,82 @@
   {
    "k": "debug.complete",
    "v": "Complete step (debug)"
+  },
+  {
+   "k": "steps.now",
+   "v": "now"
+  },
+  {
+   "k": "steps.next",
+   "v": "next"
+  },
+  {
+   "k": "steps.voice.t",
+   "v": "Your voice"
+  },
+  {
+   "k": "steps.voice.d",
+   "v": "Hum or sing near the egg for 10 s."
+  },
+  {
+   "k": "steps.box.t",
+   "v": "Music box"
+  },
+  {
+   "k": "steps.box.d",
+   "v": "No mic? Wind the crank and it plays a lullaby."
+  },
+  {
+   "k": "steps.chilly.t",
+   "v": "Chilly"
+  },
+  {
+   "k": "steps.chilly.d",
+   "v": "Frost and a shiver when warmth drops low."
+  },
+  {
+   "k": "steps.fading.t",
+   "v": "Fading"
+  },
+  {
+   "k": "steps.fading.d",
+   "v": "After a day at zero the colour fades. Warm it within 24 h to recover."
+  },
+  {
+   "k": "steps.crack.t",
+   "v": "Crack it"
+  },
+  {
+   "k": "steps.crack.d",
+   "v": "Tap the shell 5 times."
+  },
+  {
+   "k": "steps.hatching.t",
+   "v": "Hatching"
+  },
+  {
+   "k": "steps.hatching.d",
+   "v": "The shell splits and the top lifts off."
+  },
+  {
+   "k": "steps.mopey.t",
+   "v": "Mopey"
+  },
+  {
+   "k": "steps.mopey.d",
+   "v": "Needs have been low for a while. A snack and a cuddle help."
+  },
+  {
+   "k": "steps.homesick.t",
+   "v": "Homesick"
+  },
+  {
+   "k": "steps.homesick.d",
+   "v": "It keeps looking at the sky. Cheer it up soon, or it may head home."
+  },
+  {
+   "k": "settings.quit",
+   "v": "Close Pangu"
   }
  ]
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.pico.spatial.ui.foundation.hover.spatialHoverEffect
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.offset
@@ -19,12 +20,11 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import com.pico.spatial.ui.design.Text
+import com.technomancer.pangu.logic.flow.PieLayout
 import com.technomancer.pangu.logic.incubation.EggAction
 import com.technomancer.pangu.logic.incubation.EggSuggestions
 import com.technomancer.pangu.logic.loc.LocService
 import com.technomancer.pangu.logic.pet.PetAction
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** One bubble: its glyph, label key, whether it can be chosen now and whether it is suggested. */
 data class PieItem(val glyph: String, val labelKey: String, val enabled: Boolean, val suggested: Boolean)
@@ -66,40 +66,42 @@ fun PieMenu(visible: Boolean, items: List<PieItem>, loc: LocService, scale: UiSc
     Box(modifier = Modifier.size(scale.px(boxSize)), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(scale.px(ringRadiusPx * 2f))) {
             drawCircle(
-                color = PanelColors.ink.copy(alpha = 0.5f),
+                color = PanguTokens.ink.copy(alpha = 0.5f),
                 radius = size.minDimension / 2f,
                 style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))),
             )
         }
+        val layout = PieLayout.positions(items.size, ringRadiusPx)
         items.forEachIndexed { i, item ->
-            val angle = -Math.PI / 2 + i * 2 * Math.PI / items.size
-            val x = (ringRadiusPx * cos(angle)).toFloat()
-            val y = (ringRadiusPx * sin(angle)).toFloat()
+            // The layout has y up; Compose offsets have y down.
+            val x = layout[i].first
+            val y = -layout[i].second
             val filled = item.suggested
             val enabled = item.enabled
             Column(
                 modifier = Modifier
                     .offset(scale.px(x), scale.px(y + 12f))
                     .alpha(if (enabled) 1f else 0.35f)
+                    .spatialHoverEffect()
                     .clickable { onPick(i) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
                     modifier = Modifier
                         .size(scale.px(bubble))
-                        .background(if (filled) PanelColors.ink else PanelColors.paper, BlobShape)
-                        .border(scale.px(1.5f), PanelColors.ink, BlobShape),
+                        .background(if (filled) PanguTokens.ink else PanguTokens.paper, BlobShape)
+                        .border(scale.px(1.5f), PanguTokens.ink, BlobShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = item.glyph, color = if (filled) PanelColors.paper else PanelColors.ink, fontSize = scale.sp(26f))
+                    Text(text = item.glyph, color = if (filled) PanguTokens.paper else PanguTokens.ink, fontSize = scale.sp(26f), fontFamily = LocalPanguFonts.current.glyph)
                 }
                 Box(
                     modifier = Modifier
                         .padding(top = scale.px(4))
-                        .background(PanelColors.paper.copy(alpha = 0.94f), RoundedCornerShape(scale.px(9)))
+                        .background(PanguTokens.paper.copy(alpha = 0.94f), RoundedCornerShape(scale.px(9)))
                         .padding(horizontal = scale.px(8), vertical = scale.px(2)),
                 ) {
-                    Text(text = loc.get(item.labelKey), color = PanelColors.ink, fontSize = scale.sp(14f), fontWeight = FontWeight.Bold)
+                    Text(text = loc.get(item.labelKey), color = PanguTokens.ink, fontSize = scale.sp(14f), fontWeight = FontWeight.Bold)
                 }
             }
         }

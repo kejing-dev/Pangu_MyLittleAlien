@@ -132,6 +132,9 @@ class UiBridge {
 
     private var nextMicNanos = 0L
 
+    private val _settings = MutableStateFlow<SettingsUi?>(null)
+    val settings: StateFlow<SettingsUi?> = _settings
+
     /** Hatched, resting (dormant) and went-home counters. */
     private val _counters = MutableStateFlow(Triple(0, 0, 0))
     val counters: StateFlow<Triple<Int, Int, Int>> = _counters
@@ -158,6 +161,11 @@ class UiBridge {
             )
         }
         _micRequest.value = logic.micPermissionSerial
+        _language.value = logic.language
+        val s = _settings.value
+        if (s == null || s.language != logic.language || s.volume != logic.volume || s.soundOn != logic.soundOn || s.hapticsOn != logic.hapticsOn) {
+            _settings.value = SettingsUi(logic.language, logic.volume, logic.soundOn, logic.hapticsOn)
+        }
         _assist.value = logic.debugAssist
         val now = System.nanoTime()
         if (now >= nextMicNanos) {

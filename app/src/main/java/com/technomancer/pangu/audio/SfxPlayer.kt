@@ -66,6 +66,22 @@ class SfxPlayer {
         }
     }
 
+    /** Applies Settings: [volume] 0..1 scales every sound, [on] false mutes everything (the dance loop too). */
+    fun applySettings(volume: Float, on: Boolean) {
+        if (volume != this.volume) {
+            this.volume = volume
+            runCatching { loopController?.setVolume(volume) }
+        }
+        if (on != soundOn) {
+            soundOn = on
+            if (!on) {
+                runCatching { loopController?.stop() }
+                loopController = null
+                loop = null
+            }
+        }
+    }
+
     fun play(sfx: Sfx) {
         if (!soundOn || AudioCatalog.isLoop(sfx)) return
         val fromPet = AudioCatalog.isChirp(sfx) || AudioCatalog.isMusic(sfx)

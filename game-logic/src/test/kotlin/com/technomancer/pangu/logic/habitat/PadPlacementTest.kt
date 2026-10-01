@@ -38,17 +38,39 @@ class PadPlacementTest {
     }
 
     @Test
-    fun dragKeepsPadLevelAndFacesHead() {
+    fun dragMovesHandleWithHandKeepsPadLevelAndFacesHead() {
         val start = PadPose(Vec3(0f, 0.9f, -0.75f), 0f)
         val head = Vec3(0f, 1.5f, 0f)
+        val handleBefore = placement.handlePosition(start)
         val moved = placement.drag(start, Vec3(0.4f, 0.25f, 0.1f), head)
-        assertEquals(0.4f, moved.position.x, eps)
+        // The handle follows the horizontal part of the hand movement.
+        val handleAfter = placement.handlePosition(moved)
+        assertEquals(handleBefore.x + 0.4f, handleAfter.x, 1e-3f)
+        assertEquals(handleBefore.z + 0.1f, handleAfter.z, 1e-3f)
         assertEquals(0.9f, moved.position.y, eps)
-        assertEquals(-0.65f, moved.position.z, eps)
         val front = moved.rotation.rotate(Vec3(0f, 0f, 1f))
         val toHead = (head - moved.position).flattened().normalized()
-        assertEquals(1f, front dot toHead, eps)
+        assertEquals(1f, front dot toHead, 1e-3f)
         assertEquals(0f, front.y, 1e-6f)
+    }
+
+    @Test
+    fun rayDragKeepsHandleUnderPointer() {
+        val start = PadPose(Vec3(0f, 0.9f, -0.75f), 0f)
+        val head = Vec3(0f, 1.5f, 0f)
+        val handle = placement.handlePosition(start)
+        // The pointer moves straight up by 5 cm on a plane facing the player: the pad goes further away.
+        val moved = placement.drag(start, Vec3(0f, 0.05f, 0f), head, viaRay = true)
+        val after = placement.handlePosition(moved)
+        assertTrue(after.z < handle.z - 0.05f, "handle z ${after.z} from ${handle.z}")
+        // The new handle lies on the line from the head through the moved pointer.
+        val pointer = handle + Vec3(0f, 0.05f, 0f)
+        val a = (pointer - head).normalized()
+        val b = (Vec3(after.x, handle.y, after.z) - head).normalized()
+        assertEquals(1f, a dot b, 1e-3f)
+        // Down pulls it closer.
+        val closer = placement.handlePosition(placement.drag(start, Vec3(0f, -0.05f, 0f), head, viaRay = true))
+        assertTrue(closer.z > handle.z)
     }
 
     @Test

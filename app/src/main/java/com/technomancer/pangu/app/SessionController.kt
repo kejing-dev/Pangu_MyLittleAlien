@@ -18,6 +18,7 @@ import com.technomancer.pangu.logic.save.PadPoseData
 import com.technomancer.pangu.logic.save.PetData
 import com.technomancer.pangu.logic.save.SaveData
 import com.technomancer.pangu.logic.save.SaveSerializer
+import com.technomancer.pangu.logic.save.SettingsData
 import com.technomancer.pangu.logic.time.IClock
 import com.technomancer.pangu.ui.UiBridge
 import java.util.concurrent.Executors
@@ -135,6 +136,8 @@ class SessionController(
             lastLook = logic.flow.lastLook,
             egg = eggData,
             micChoice = logic.micChoice,
+            language = logic.language.code,
+            settings = SettingsData(logic.volume, logic.soundOn, logic.hapticsOn),
             personality = logic.pet.personality,
             padPose = padData,
             pet = petData,

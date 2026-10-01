@@ -5,6 +5,7 @@ import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.incubation.EggAction
 import com.technomancer.pangu.logic.incubation.MicChoice
 import com.technomancer.pangu.logic.input.LookPick
+import com.technomancer.pangu.logic.habitat.PadPlacement
 import com.technomancer.pangu.logic.habitat.PadPose
 import com.technomancer.pangu.logic.input.InputSnapshot
 import com.technomancer.pangu.logic.input.InteractionQueue
@@ -35,15 +36,18 @@ class PanguLogicTest {
     }
 
     @Test
-    fun handleDragMovesPadOnlyWhilePlacing() {
+    fun handleDragMovesPadAnyTime() {
         val logic = PanguLogic(startScreen = ScreenId.C02)
         logic.placePad(PadPose(Vec3(0f, 0.9f, -0.75f), 0f))
         input.setHead(Vec3(0f, 1.5f, 0f), Quat.IDENTITY)
+        val placement = PadPlacement()
+        val handle0 = placement.handlePosition(logic.padPose!!)
         events.push(InteractionType.DragStart, TargetId.PAD_HANDLE)
         events.push(InteractionType.DragMove, TargetId.PAD_HANDLE, Vec3(0.1f, 0.3f, 0f))
         events.push(InteractionType.DragEnd, TargetId.PAD_HANDLE)
         logic.tick(0.016f, input, events)
-        assertEquals(0.1f, logic.padPose!!.position.x, 1e-6f)
+        // The handle follows the hand sideways; the pad stays at its height.
+        assertEquals(handle0.x + 0.1f, placement.handlePosition(logic.padPose!!).x, 1e-3f)
         assertEquals(0.9f, logic.padPose!!.position.y, 1e-6f)
         assertTrue(logic.consumeSaveRequest())
 
@@ -53,8 +57,13 @@ class PanguLogicTest {
         events.push(InteractionType.DragStart, TargetId.PAD_HANDLE)
         events.push(InteractionType.DragMove, TargetId.PAD_HANDLE, Vec3(0.2f, 0f, 0f))
         logic.tick(0.016f, input, events)
-        assertEquals(0.1f, logic.padPose!!.position.x, 1e-6f)
+        // After placement the handle still moves the pad, and letting go saves it.
+        assertEquals(handle0.x + 0.3f, placement.handlePosition(logic.padPose!!).x, 1e-3f)
+        assertTrue(logic.isDraggingPad)
+        events.push(InteractionType.DragEnd, TargetId.PAD_HANDLE)
+        logic.tick(0.016f, input, events)
         assertFalse(logic.isDraggingPad)
+        assertTrue(logic.consumeSaveRequest())
     }
 
     @Test

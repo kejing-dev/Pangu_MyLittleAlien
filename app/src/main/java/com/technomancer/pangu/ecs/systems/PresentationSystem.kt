@@ -12,6 +12,7 @@ import com.technomancer.pangu.ecs.toSdk
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.art.AlienParts
 import com.technomancer.pangu.logic.art.EggMesh
+import com.technomancer.pangu.logic.art.GradientColors
 import com.technomancer.pangu.logic.creation.PetLook
 import com.technomancer.pangu.logic.personality.Personality
 import com.technomancer.pangu.logic.flow.FlowState
@@ -72,6 +73,8 @@ class PresentationSystem(
     private val padParts = listOf(HabitatFactory.PAD, HabitatFactory.NEST, HabitatFactory.LAMP).mapNotNull { habitat.findEntity(it)?.transform() }
     private val padPartScales = padParts.map { it.scaleVector }
     private val bulb = habitat.findEntity(HabitatFactory.LAMP_BULB)
+    private val ghostRing = habitat.findEntity(HabitatFactory.GHOST_RING)?.transform()
+    private var ghostShown: Boolean? = null
     private val pedestalTransform = scene.pedestal?.transform()
     private val pedestalScale = pedestalTransform?.scaleVector ?: Vector3.ONE
     private val tipTransforms = scene.pet?.tips?.map { it.transform() }.orEmpty()
@@ -107,6 +110,7 @@ class PresentationSystem(
     private var time = 0.0
     private var lampLit: Boolean? = null
     private var shownLook: PetLook? = null
+    private var shownSad = false
     private var studioShown: Boolean? = null
 
     fun apply(logic: PanguLogic, input: InputSnapshot, dt: Float) {
@@ -121,17 +125,24 @@ class PresentationSystem(
             }
         }
 
+        // The handle glows while placing and while it is being dragged; the label only shows while placing.
         val placing = logic.screens.isPlacingPad
-        if (placing != glowOn) {
-            glowOn = placing
-            handleGlow?.setScaleVector(if (placing) Vector3.ONE else Vector3.ZERO)
+        val glow = placing || logic.isDraggingPad
+        if (glow != glowOn) {
+            glowOn = glow
+            handleGlow?.setScaleVector(if (glow) Vector3.ONE else Vector3.ZERO)
             labelTransform?.setScaleVector(if (placing) panelScaleVector else Vector3.ZERO)
         }
 
         val petShown = logic.isPetFlow
         val studio = logic.isStudio
         val sealing = logic.egg.sealSec >= 0f
-        applyStudio(studio, sealing, logic.egg.formScale)
+        applyStudio(studio || logic.screens.current == ScreenId.C01, studio, sealing, logic.egg.formScale)
+        val ghost = logic.screens.current == ScreenId.C01
+        if (ghost != ghostShown) {
+            ghostShown = ghost
+            ghostRing?.setScaleVector(if (ghost) Vector3.ONE else Vector3.ZERO)
+        }
 
         val orbBase = when {
             petShown -> orbAbovePet(logic)
@@ -139,7 +150,7 @@ class PresentationSystem(
             else -> Vec3(0f, config.orbHeight, 0f)
         }
         val bob = config.orbBobAmplitude / habitatScale * sin(2.0 * PI * config.orbBobHz * time).toFloat()
-        val orbHidden = (petShown && logic.pet.stage() == Distress.WentHome) || studio || sealing ||
+        val orbHidden = (petShown && logic.pet.stage() == Distress.WentHome) || studio || sealing || ghost ||
             logic.flow.flow == FlowState.Hatching || logic.flow.flow == FlowState.Dormant
         orbTransform?.setScaleVector(if (orbHidden) Vector3.ZERO else Vector3.ONE)
         orbTransform?.setPosition(Vector3(orbBase.x, orbBase.y + bob, orbBase.z))
@@ -170,10 +181,10 @@ class PresentationSystem(
     }
 
     /** In the studio the pad, nest and lamp make way for the pedestal, which shrinks away as the egg forms. */
-    private fun applyStudio(studio: Boolean, sealing: Boolean, formScale: Float) {
-        if (studio != studioShown) {
-            studioShown = studio
-            padParts.forEachIndexed { i, t -> t.setScaleVector(if (studio) Vector3.ZERO else padPartScales[i]) }
+    private fun applyStudio(hidePad: Boolean, studio: Boolean, sealing: Boolean, formScale: Float) {
+        if (hidePad != studioShown) {
+            studioShown = hidePad
+            padParts.forEachIndexed { i, t -> t.setScaleVector(if (hidePad) Vector3.ZERO else padPartScales[i]) }
         }
         val p = when {
             studio -> 1f
@@ -183,13 +194,25 @@ class PresentationSystem(
         pedestalTransform?.setScaleVector(Vector3(pedestalScale.x * p, pedestalScale.y * p, pedestalScale.z * p))
     }
 
-    /** Tints the rig and shows the chosen antenna tip when the look changes. */
+    /**
+     * Tints the rig and shows the chosen antenna tip when the look changes. A mopey or homesick
+     * pet loses 40 % of its colour (saturation 0.6) until it cheers up.
+     */
     private fun applyLook(logic: PanguLogic) {
         val rig = scene.pet ?: return
         val look = logic.look
-        if (look == shownLook) return
+        val stage = logic.pet.stage()
+        val sad = logic.isPetFlow && (stage == Distress.Mopey || stage == Distress.Homesick)
+        if (look == shownLook && sad == shownSad) return
         shownLook = look
-        meshes.applyLook(rig, logic.catalog.bodyColor(look), logic.catalog.tipColor(look))
+        shownSad = sad
+        val body = logic.catalog.bodyColor(look)
+        val tip = logic.catalog.tipColor(look)
+        if (sad) {
+            meshes.applyLook(rig, GradientColors.desaturate(body, SAD_DESATURATION), GradientColors.desaturate(tip, SAD_DESATURATION))
+        } else {
+            meshes.applyLook(rig, body, tip)
+        }
         tipTransforms.forEachIndexed { i, t -> t?.setScaleVector(if (i == look.shape) Vector3.ONE else Vector3.ZERO) }
     }
 
@@ -395,6 +418,7 @@ class PresentationSystem(
         private const val ORB_ABOVE_EGG = 0.10f
 
         private const val SHIMMER_SEC = 12.0
+        private const val SAD_DESATURATION = 0.4f
         private const val SHIMMER_STEPS = 24
 
         /** Body proxy for freckles: an ellipsoid around the body, model units. */

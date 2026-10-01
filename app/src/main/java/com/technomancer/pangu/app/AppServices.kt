@@ -66,7 +66,12 @@ object AppServices {
         val placement = PadPlacement(placementConfig)
         // Saves from before creation existed have a hatched pet but no flow yet.
         val flow = if (save.flow == FlowState.Onboarding && save.pet.hatchUtcMs > 0L) FlowState.Pet else save.flow
-        val startScreen = if (save.padPose.has) FlowMachine.resumeScreen(flow, save.screen) else ScreenId.C02
+        // First launch picks a language (C01); after that a missing pad is placed again (C02).
+        val startScreen = when {
+            save.padPose.has -> FlowMachine.resumeScreen(flow, save.screen)
+            save.language.isEmpty() -> ScreenId.C01
+            else -> ScreenId.C02
+        }
         val logic = PanguLogic(
             placement = placement,
             startScreen = startScreen,
@@ -88,6 +93,10 @@ object AppServices {
         logic.flow.look = save.look
         logic.flow.lastLook = save.lastLook
         logic.micChoice = save.micChoice
+        logic.language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
+        logic.volume = save.settings.volume
+        logic.soundOn = save.settings.soundOn
+        logic.hapticsOn = save.settings.hapticsOn
         logic.debugAssist = debuggable && isEmulator()
         val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
         when (flow) {

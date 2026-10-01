@@ -19,9 +19,9 @@ class FlowMachine(val screens: ScreenMachine, initialLook: PetLook = PetLook()) 
     /** The look of the last egg that was set; a new egg starts from it. */
     var lastLook: PetLook = initialLook
 
-    /** C01 Continue. */
+    /** C01 Continue: the language is chosen, on to placing the habitat. */
     fun continueFromLanguage() {
-        if (screens.current == ScreenId.C01) screens.show(ScreenId.C02)
+        if (screens.current == ScreenId.C01) screens.primary()
     }
 
     /** The pad was confirmed on C02: the first launch moves on to the studio. */

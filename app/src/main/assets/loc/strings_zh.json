@@ -947,6 +947,82 @@
   {
    "k": "debug.complete",
    "v": "完成此步(调试)"
+  },
+  {
+   "k": "steps.now",
+   "v": "现在"
+  },
+  {
+   "k": "steps.next",
+   "v": "之后"
+  },
+  {
+   "k": "steps.voice.t",
+   "v": "你的声音"
+  },
+  {
+   "k": "steps.voice.d",
+   "v": "在蛋旁边哼唱 10 秒。"
+  },
+  {
+   "k": "steps.box.t",
+   "v": "音乐盒"
+  },
+  {
+   "k": "steps.box.d",
+   "v": "不用麦克风?转动摇柄,它会播放摇篮曲。"
+  },
+  {
+   "k": "steps.chilly.t",
+   "v": "有点冷"
+  },
+  {
+   "k": "steps.chilly.d",
+   "v": "温度过低时会结霜、发抖。"
+  },
+  {
+   "k": "steps.fading.t",
+   "v": "褪色"
+  },
+  {
+   "k": "steps.fading.d",
+   "v": "冷了一天后颜色变淡。24 小时内回温即可恢复。"
+  },
+  {
+   "k": "steps.crack.t",
+   "v": "敲开"
+  },
+  {
+   "k": "steps.crack.d",
+   "v": "轻敲蛋壳 5 下。"
+  },
+  {
+   "k": "steps.hatching.t",
+   "v": "孵化中"
+  },
+  {
+   "k": "steps.hatching.d",
+   "v": "蛋壳裂开,顶部掀了起来。"
+  },
+  {
+   "k": "steps.mopey.t",
+   "v": "闷闷不乐"
+  },
+  {
+   "k": "steps.mopey.d",
+   "v": "需求低了一段时间。吃点零食、摸一摸会好些。"
+  },
+  {
+   "k": "steps.homesick.t",
+   "v": "想家"
+  },
+  {
+   "k": "steps.homesick.d",
+   "v": "它一直望着天空。快让它开心起来,不然它可能会回家。"
+  },
+  {
+   "k": "settings.quit",
+   "v": "关闭盘古"
   }
  ]
 }

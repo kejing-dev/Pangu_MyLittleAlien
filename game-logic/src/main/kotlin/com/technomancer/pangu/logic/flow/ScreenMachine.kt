@@ -4,8 +4,8 @@ package com.technomancer.pangu.logic.flow
 enum class ScreenEffect { None, ConfirmPad }
 
 /**
- * Which screen is showing. The pause screen (C34) and the recenter screen (C37) sit on top of
- * whatever was showing and return to it when dismissed.
+ * Which screen is showing. The pause screen (C34), the recenter screen (C37) and Settings (C36)
+ * sit on top of whatever was showing and return to it when dismissed.
  *
  * [afterPlacement] is where the game continues once the pad is placed: C03 (creation) normally,
  * or C23 (the pet) while creation is not built yet.
@@ -16,6 +16,7 @@ class ScreenMachine(start: ScreenId, private val afterPlacement: ScreenId = Scre
 
     private var beforePause: ScreenId? = null
     private var beforeRecenter: ScreenId? = null
+    private var beforeSettings: ScreenId? = null
 
     /** True while the player is placing the pad (the handle glows and can be dragged). */
     val isPlacingPad: Boolean get() = current == ScreenId.C02 || current == ScreenId.C37
@@ -23,7 +24,8 @@ class ScreenMachine(start: ScreenId, private val afterPlacement: ScreenId = Scre
     /** The screen to save and restore on the next launch: overlays (pause, recenter) are skipped. */
     val persistentScreen: ScreenId
         get() {
-            val base = if (current == ScreenId.C34) beforePause ?: current else current
+            var base = if (current == ScreenId.C34) beforePause ?: current else current
+            if (base == ScreenId.C36) base = beforeSettings ?: afterPlacement
             return if (base == ScreenId.C37) beforeRecenter ?: afterPlacement else base
         }
 
@@ -45,13 +47,35 @@ class ScreenMachine(start: ScreenId, private val afterPlacement: ScreenId = Scre
         current = ScreenId.C37
     }
 
-    /** Moves to [id] unless an overlay is showing. */
+    /** Opens Settings over the current screen. */
+    fun openSettings() {
+        if (current == ScreenId.C34 || current == ScreenId.C37 || current == ScreenId.C36) return
+        beforeSettings = current
+        current = ScreenId.C36
+    }
+
+    /** Closes Settings, back to where it was opened. */
+    fun closeSettings() {
+        if (current != ScreenId.C36) return
+        current = beforeSettings ?: afterPlacement
+        beforeSettings = null
+    }
+
+    /** Moves to [id] unless an overlay is showing; behind Settings the screen underneath changes. */
     fun show(id: ScreenId) {
         if (current == ScreenId.C34 || current == ScreenId.C37) return
+        if (current == ScreenId.C36) {
+            beforeSettings = id
+            return
+        }
         current = id
     }
 
     fun primary(): ScreenEffect = when (current) {
+        ScreenId.C01 -> {
+            current = ScreenId.C02
+            ScreenEffect.None
+        }
         ScreenId.C02 -> {
             current = afterPlacement
             ScreenEffect.ConfirmPad

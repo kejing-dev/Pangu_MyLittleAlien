@@ -10,7 +10,9 @@ import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
 import com.technomancer.pangu.audio.MicService
 import com.technomancer.pangu.audio.SfxPlayer
+import com.technomancer.pangu.logic.input.ControllerActivity
 import com.technomancer.pangu.logic.input.InteractionType
+import com.technomancer.pangu.logic.loc.LocService
 import com.technomancer.pangu.logic.HapticCue
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.config.InputConfig
@@ -35,7 +37,9 @@ class PanguFrameSystem : System() {
     private val session: SessionController = ServiceRegistry.resolve()
     private val debug: DebugFlags = ServiceRegistry.resolve()
     private val mic: MicService = ServiceRegistry.resolve()
+    private val loc: LocService = ServiceRegistry.resolve()
     private var micOn = false
+    private val controllers = ControllerActivity()
     private var nextLogNanos = 0L
     private var autosaveSec = 0f
 
@@ -45,6 +49,8 @@ class PanguFrameSystem : System() {
         val dt = context.deltaTime.coerceIn(0f, MAX_DT) * debug.timeScale
 
         scene.input?.collect(snapshot)
+        controllers.update(snapshot, context.deltaTime)
+        haptics.side = controllers.active()
         updateMic()
         logic.tick(dt, snapshot, events)
         scene.presentation?.apply(logic, snapshot, dt)
@@ -58,6 +64,7 @@ class PanguFrameSystem : System() {
             HapticCue.Crack -> haptics.play(inputConfig.tapToCrack)
             null -> Unit
         }
+        applySettings()
         sfx.voicePitch = logic.pet.personality.voicePitch
         while (true) sfx.play(logic.nextSound() ?: break)
         sfx.setLoop(if (logic.isPaused) null else logic.danceMusic)
@@ -75,6 +82,13 @@ class PanguFrameSystem : System() {
                 Log.i(TAG, "tick=${logic.tickCount} dt=${context.deltaTime} screen=${logic.screens.current}")
             }
         }
+    }
+
+    /** Settings take effect at once: volume and sound on the player, haptics, and the string tables' language. */
+    private fun applySettings() {
+        sfx.applySettings(logic.volume / 100f, logic.soundOn)
+        haptics.enabled = logic.hapticsOn
+        if (loc.language != logic.language) loc.setLanguage(logic.language)
     }
 
     /** Reads the microphone only while the player is singing to the egg (C12). */

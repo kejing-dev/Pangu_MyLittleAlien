@@ -9,6 +9,9 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import com.pico.spatial.ui.platform.containers.LocalSpatialNavigator
+import kotlinx.coroutines.launch
 import com.technomancer.pangu.audio.MicService
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -33,13 +36,13 @@ import com.pico.spatial.ui.foundation.dsl.registerSystem
 import com.pico.spatial.ui.foundation.dsl.unregisterSystem
 import com.pico.spatial.ui.foundation.gesture.TargetEntity
 import com.pico.spatial.ui.foundation.gesture.detectSpatialDragGesture
+import com.pico.spatial.ui.foundation.gesture.data.InteractionKind
 import com.pico.spatial.ui.foundation.gesture.detectSpatialTapGesture
 import com.pico.spatial.ui.geometry.Offset3D
 import com.pico.spatial.ui.platform.LengthUnit
 import com.pico.spatial.ui.platform.LocalHandControllerHaptic
 import com.pico.spatial.ui.platform.LocalPhysicalLengthConverter
 import com.pico.spatial.ui.platform.PhysicalLengthConverter
-import com.technomancer.pangu.app.DebugFlags
 import com.technomancer.pangu.app.Haptics
 import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
@@ -53,6 +56,8 @@ import com.technomancer.pangu.logic.art.AlienParts
 import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.ui.PanelActions
 import com.technomancer.pangu.ui.PanelState
+import com.technomancer.pangu.ui.PanguType
+import androidx.compose.runtime.key
 import com.technomancer.pangu.ui.eggPieItems
 import com.technomancer.pangu.ui.petPieItems
 import com.technomancer.pangu.ecs.entities.HabitatFactory
@@ -106,7 +111,6 @@ fun PanguStage() {
     val scene = remember { ServiceRegistry.resolve<SceneHandles>() }
     val haptics = remember { ServiceRegistry.resolve<Haptics>() }
     val sfx = remember { ServiceRegistry.resolve<SfxPlayer>() }
-    val showDebug = remember { ServiceRegistry.resolve<DebugFlags>().debuggable }
     val input = remember { InputSystem(ServiceRegistry.resolve<InputConfig>()) }
     val mic = remember { ServiceRegistry.resolve<MicService>() }
 
@@ -117,6 +121,8 @@ fun PanguStage() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val scale = UiScale.remember(uiConfig)
     val drag = remember { DragState() }
+    val navigator = LocalSpatialNavigator.current
+    val quitScope = rememberCoroutineScope()
     val panelActions = remember {
         PanelActions(
             onPrimary = { events.push(InteractionType.UiPrimary) },
@@ -126,6 +132,19 @@ fun PanguStage() {
             onWheel = { events.push(InteractionType.UiWheel, it) },
             onInfo = { events.push(InteractionType.UiInfo) },
             onAssist = { events.push(InteractionType.UiAssist) },
+            onSettings = { events.push(InteractionType.UiSettings) },
+            onLanguage = { events.push(InteractionType.UiLanguage, it.ordinal) },
+            onVolume = { events.push(InteractionType.UiVolume, it) },
+            onSound = { events.push(InteractionType.UiSound, if (it) 1 else 0) },
+            onHaptics = { events.push(InteractionType.UiHaptics, if (it) 1 else 0) },
+            onQuit = {
+                // Save first, then close the Stage; the Activity goes too so nothing is left running.
+                session.persist()
+                quitScope.launch {
+                    runCatching { navigator.closeStage() }.onFailure { Log.w(TAG, "closeStage failed", it) }
+                    context.findActivity()?.finishAndRemoveTask()
+                }
+            },
         )
     }
 
@@ -193,16 +212,22 @@ fun PanguStage() {
                     onDragStart = { _, value ->
                         drag.target = value.targetEntity.targetId()
                         events.push(InteractionType.DragStart, drag.target)
+                        Log.i(TAG, "Drag start on target ${drag.target} by ${value.interactionKind}")
                     },
                     onDragEnd = { events.push(InteractionType.DragEnd, drag.target, timeNanos = System.nanoTime()) },
                     onDragCancel = { events.push(InteractionType.DragEnd, drag.target, timeNanos = System.nanoTime()) },
                 ) { value ->
                     val root = drag.root ?: return@detectSpatialDragGesture
-                    events.push(InteractionType.DragMove, drag.target, stageDelta(value.dragAmount, root, density, converter), System.nanoTime())
+                    // A hand or controller holding the object moves it directly; a ray, gaze or mouse pointer slides it on a plane facing the player.
+                    val viaRay = value.interactionKind != InteractionKind.DirectPinch && value.interactionKind != InteractionKind.Poke
+                    events.push(InteractionType.DragMove, drag.target, stageDelta(value.dragAmount, root, density, converter), System.nanoTime(), viaRay)
                 }
             },
         attachments = {
             AttachmentPanel(id = PANEL_INFO) {
+                val language by ui.language.collectAsState()
+                PanguType(language) {
+                key(language) {
                 val screen by ui.screen.collectAsState()
                 val pet by ui.pet.collectAsState()
                 val studio by ui.studio.collectAsState()
@@ -210,20 +235,30 @@ fun PanguStage() {
                 val counters by ui.counters.collectAsState()
                 val micLevel by ui.micLevel.collectAsState()
                 val assist by ui.assist.collectAsState()
+                val settings by ui.settings.collectAsState()
                 InfoPanel(
                     content = ScreenContent.of(screen),
-                    state = PanelState(pet, studio, egg, counters, micLevel, assist),
+                    state = PanelState(pet, studio, egg, counters, micLevel, assist, settings),
                     loc = loc,
                     scale = scale,
-                    showDebug = showDebug,
                     actions = panelActions,
                 )
+                }
+                }
             }
             AttachmentPanel(id = PANEL_HANDLE) {
+                val language by ui.language.collectAsState()
+                PanguType(language) {
+                key(language) {
                 val screen by ui.screen.collectAsState()
                 HandleLabel(screen == ScreenId.C02 || screen == ScreenId.C37, loc, scale)
+                }
+                }
             }
             AttachmentPanel(id = PANEL_PIE) {
+                val language by ui.language.collectAsState()
+                PanguType(language) {
+                key(language) {
                 val screen by ui.screen.collectAsState()
                 val pet by ui.pet.collectAsState()
                 val egg by ui.egg.collectAsState()
@@ -234,14 +269,26 @@ fun PanguStage() {
                     scale = scale,
                     ringRadiusPx = uiConfig.pieRadius / uiConfig.metresPerMockupPx,
                 ) { events.push(InteractionType.UiPie, it) }
+                }
+                }
             }
             AttachmentPanel(id = PANEL_TOAST) {
+                val language by ui.language.collectAsState()
+                PanguType(language) {
+                key(language) {
                 val toast by ui.toast.collectAsState()
                 Toast(toast, loc, scale, uiConfig.toastSec)
+                }
+                }
             }
             AttachmentPanel(id = PANEL_PAUSE) {
+                val language by ui.language.collectAsState()
+                PanguType(language) {
+                key(language) {
                 val paused by ui.paused.collectAsState()
                 PauseDim(paused, loc, scale)
+                }
+                }
             }
         },
     ) { content, attachments ->

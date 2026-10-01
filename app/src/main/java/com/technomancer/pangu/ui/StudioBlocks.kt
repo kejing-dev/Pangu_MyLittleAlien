@@ -3,6 +3,7 @@ package com.technomancer.pangu.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.pico.spatial.ui.foundation.hover.spatialHoverEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import com.pico.spatial.ui.design.Text
 import com.technomancer.pangu.logic.creation.LookCatalog
 import com.technomancer.pangu.logic.input.LookPick
@@ -27,7 +31,7 @@ import com.technomancer.pangu.logic.loc.LocService
 /** Small uppercase section label above a row of choices. */
 @Composable
 private fun SectionLabel(text: String, scale: UiScale) {
-    Text(text = text.uppercase(), color = PanelColors.muted, fontSize = scale.sp(13f), fontWeight = FontWeight.Bold)
+    Text(text = text.uppercase(), color = PanguTokens.muted, fontSize = scale.sp(13f), fontWeight = FontWeight.Bold)
 }
 
 /** C03: body swatches, tip swatches and the 3×2 antenna shape grid. */
@@ -49,14 +53,18 @@ fun LookBlock(studio: StudioUi, loc: LocService, scale: UiScale, onPick: (Int) -
                         modifier = Modifier
                             .width(scale.px(114))
                             .height(scale.px(40))
-                            .background(if (selected) PanelColors.ink else PanelColors.cream, shape)
-                            .border(scale.px(1.5f), PanelColors.ink, shape)
+                            .background(if (selected) PanguTokens.ink else PanguTokens.cream, shape)
+                            .border(scale.px(1.5f), PanguTokens.ink, shape)
+                            .spatialHoverEffect()
                             .clickable { onPick(LookPick.encode(LookPick.SHAPE, i)) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "${SHAPE_GLYPHS[i]} ${loc.get("ui.shapes.$i")}",
-                            color = if (selected) PanelColors.paper else PanelColors.ink,
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(fontFamily = LocalPanguFonts.current.glyph)) { append(SHAPE_GLYPHS[i]) }
+                                append(" " + loc.get("ui.shapes.$i"))
+                            },
+                            color = if (selected) PanguTokens.paper else PanguTokens.ink,
                             fontSize = scale.sp(15f),
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -77,10 +85,11 @@ private fun SwatchRow(swatches: List<Int>, selected: Int, scale: UiScale, onPick
             Box(
                 modifier = Modifier
                     .size(scale.px(if (chosen) 42 else 34))
-                    .then(if (chosen) Modifier.border(scale.px(5), PanelColors.ink, CircleShape).padding(scale.px(5)) else Modifier)
-                    .then(if (chosen) Modifier.border(scale.px(3), PanelColors.paper, CircleShape).padding(scale.px(3)) else Modifier)
+                    .then(if (chosen) Modifier.border(scale.px(5), PanguTokens.ink, CircleShape).padding(scale.px(5)) else Modifier)
+                    .then(if (chosen) Modifier.border(scale.px(3), PanguTokens.paper, CircleShape).padding(scale.px(3)) else Modifier)
                     .background(color, CircleShape)
-                    .border(scale.px(1.5f), PanelColors.ink, CircleShape)
+                    .border(scale.px(1.5f), PanguTokens.ink, CircleShape)
+                    .spatialHoverEffect()
                     .clickable { onPick(i) },
             )
         }
@@ -97,18 +106,19 @@ fun NameBlock(studio: StudioUi, scale: UiScale, onWheel: (Int) -> Unit) {
                 modifier = Modifier
                     .width(scale.px(76))
                     .height(scale.px(62))
-                    .background(PanelColors.cream, shape)
-                    .border(scale.px(1.5f), PanelColors.ink, shape)
+                    .background(PanguTokens.cream, shape)
+                    .border(scale.px(1.5f), PanguTokens.ink, shape)
+                    .spatialHoverEffect()
                     .clickable { onWheel(i) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(text = syllable, color = PanelColors.ink, fontSize = scale.sp(22f), fontWeight = FontWeight.SemiBold)
-                Text(text = "↻", color = PanelColors.muted, fontSize = scale.sp(11f))
+                Text(text = syllable, color = PanguTokens.ink, fontSize = scale.sp(22f), fontWeight = FontWeight.SemiBold)
+                Text(text = "↻", color = PanguTokens.muted, fontSize = scale.sp(11f), fontFamily = LocalPanguFonts.current.glyph)
             }
         }
     }
-    Text(text = "= ${studio.name}", color = PanelColors.ink, fontSize = scale.sp(35f), fontWeight = FontWeight.SemiBold)
+    Text(text = "= ${studio.name}", color = PanguTokens.ink, fontSize = scale.sp(35f), fontWeight = FontWeight.SemiBold)
 }
 
 /** Key / value rows with thin dividers, as on C07 and C35. */
@@ -116,10 +126,10 @@ fun NameBlock(studio: StudioUi, scale: UiScale, onWheel: (Int) -> Unit) {
 fun KeyValueRows(rows: List<Pair<String, String>>, scale: UiScale) {
     rows.forEach { (key, value) ->
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = key, color = PanelColors.muted, fontSize = scale.sp(16f), modifier = Modifier.weight(1f))
-            Text(text = value, color = PanelColors.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
+            Text(text = key, color = PanguTokens.muted, fontSize = scale.sp(16f), modifier = Modifier.weight(1f))
+            Text(text = value, color = PanguTokens.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
         }
-        Box(modifier = Modifier.fillMaxWidth().height(scale.px(1.5f)).background(PanelColors.divider))
+        Box(modifier = Modifier.fillMaxWidth().height(scale.px(1.5f)).background(PanguTokens.divider))
     }
 }
 

@@ -54,6 +54,19 @@ enum class InteractionType {
 
     /** The "?" on the needs panel: show the personality card again. */
     UiInfo,
+
+    /** The ⚙ button: open Settings. */
+    UiSettings,
+
+    /** A language row or segment; the target field holds the Language ordinal. */
+    UiLanguage,
+
+    /** The volume slider; the target field holds 0..100. */
+    UiVolume,
+
+    /** The Sound and Haptics switches; the target field is 1 for on. */
+    UiSound,
+    UiHaptics,
 }
 
 /** One input event. [delta] is the drag movement since the previous event, in Stage space; [timeNanos] when it happened. */
@@ -62,6 +75,9 @@ class InteractionEvent {
     var target: Int = TargetId.NONE
     var delta: Vec3 = Vec3.ZERO
     var timeNanos: Long = 0L
+
+    /** True when a drag comes from a ray, gaze or mouse pointer rather than a hand or controller holding the object. */
+    var viaRay: Boolean = false
 }
 
 /**
@@ -74,7 +90,7 @@ class InteractionQueue(capacity: Int = 64) {
     var size = 0
         private set
 
-    fun push(type: InteractionType, target: Int = TargetId.NONE, delta: Vec3 = Vec3.ZERO, timeNanos: Long = 0L) {
+    fun push(type: InteractionType, target: Int = TargetId.NONE, delta: Vec3 = Vec3.ZERO, timeNanos: Long = 0L, viaRay: Boolean = false) {
         if (size == events.size) {
             head = (head + 1) % events.size
             size--
@@ -84,6 +100,7 @@ class InteractionQueue(capacity: Int = 64) {
         e.target = target
         e.delta = delta
         e.timeNanos = timeNanos
+        e.viaRay = viaRay
         size++
     }
 

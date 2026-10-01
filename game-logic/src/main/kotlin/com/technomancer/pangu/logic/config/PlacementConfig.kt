@@ -14,6 +14,10 @@ data class PlacementConfig(
     val padDiameter: Float = 0.5f,
     /** Uniform scale of the whole habitat (pad, nest, lamp, orb). 1.3 makes the 0.5 m pad 0.65 m wide. Panels keep their size. */
     val habitatScale: Float = 1.3f,
+    /** Distance from the pad centre to its handle along the pad's right (+X), in pad units before [habitatScale]. */
+    val handleOffset: Float = 0.266f,
+    /** A ray drag never pushes the handle further than this from the head, metres. */
+    val maxDragDistance: Float = 3f,
     /** Head position used when no head pose arrives in time (Stage space: origin at the feet). */
     val fallbackHeadHeight: Float = 1.0f,
 )
