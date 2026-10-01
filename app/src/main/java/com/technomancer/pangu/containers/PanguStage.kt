@@ -1,6 +1,15 @@
 package com.technomancer.pangu.containers
 
+import android.Manifest
 import android.util.Log
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import com.technomancer.pangu.audio.MicService
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -99,6 +108,7 @@ fun PanguStage() {
     val sfx = remember { ServiceRegistry.resolve<SfxPlayer>() }
     val showDebug = remember { ServiceRegistry.resolve<DebugFlags>().debuggable }
     val input = remember { InputSystem(ServiceRegistry.resolve<InputConfig>()) }
+    val mic = remember { ServiceRegistry.resolve<MicService>() }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -114,7 +124,39 @@ fun PanguStage() {
             onRecenter = { events.push(InteractionType.UiRecenter) },
             onLook = { events.push(InteractionType.UiLook, it) },
             onWheel = { events.push(InteractionType.UiWheel, it) },
+            onInfo = { events.push(InteractionType.UiInfo) },
+            onAssist = { events.push(InteractionType.UiAssist) },
         )
+    }
+
+    // "Allow microphone" on C11 asks Android for the permission. The launch Activity is the
+    // template's and has no result callback, so the answer is read back once the system dialog closes.
+    val micRequest by ui.micRequest.collectAsState()
+    LaunchedEffect(micRequest) {
+        if (micRequest == 0) return@LaunchedEffect
+        if (mic.hasPermission()) {
+            events.push(InteractionType.UiMic, 1)
+            return@LaunchedEffect
+        }
+        val activity = context.findActivity()
+        if (activity == null) {
+            events.push(InteractionType.UiMic, 0)
+            return@LaunchedEffect
+        }
+        ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
+        val lifecycle = lifecycleOwner.lifecycle
+        var dialogShown = false
+        val granted = withTimeoutOrNull(MIC_ANSWER_WAIT_MS) {
+            while (!mic.hasPermission()) {
+                val resumed = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                if (!resumed) dialogShown = true
+                // The dialog paused the app and it is back: the player said no.
+                if (dialogShown && resumed) return@withTimeoutOrNull false
+                delay(MIC_POLL_MS)
+            }
+            true
+        } ?: false
+        events.push(InteractionType.UiMic, if (granted) 1 else 0)
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -128,6 +170,7 @@ fun PanguStage() {
             unregisterSystem<PanguFrameSystem>()
             scene.clear()
             sfx.clear()
+            mic.stop()
             input.stop()
             haptics.device = null
         }
@@ -165,9 +208,11 @@ fun PanguStage() {
                 val studio by ui.studio.collectAsState()
                 val egg by ui.egg.collectAsState()
                 val counters by ui.counters.collectAsState()
+                val micLevel by ui.micLevel.collectAsState()
+                val assist by ui.assist.collectAsState()
                 InfoPanel(
                     content = ScreenContent.of(screen),
-                    state = PanelState(pet, studio, egg, counters),
+                    state = PanelState(pet, studio, egg, counters, micLevel, assist),
                     loc = loc,
                     scale = scale,
                     showDebug = showDebug,
@@ -327,6 +372,19 @@ private const val MAX_CRUMBS = 5
 private const val PANEL_TOAST = "panel_toast"
 private const val PANEL_PAUSE = "panel_pause"
 private const val HEAD_WAIT_MS = 2000L
+private const val MIC_REQUEST_CODE = 7
+private const val MIC_ANSWER_WAIT_MS = 60_000L
+private const val MIC_POLL_MS = 300L
+
+/** The Activity behind a Compose context, if any. */
+private fun Context.findActivity(): Activity? {
+    var c: Context? = this
+    while (c is ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
 
 /** Poses below this height are treated as "tracking not ready yet" (the Stage origin is at the feet). */
 private const val MIN_HEAD_HEIGHT = 0.2f

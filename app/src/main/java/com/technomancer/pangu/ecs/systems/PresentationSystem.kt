@@ -13,6 +13,7 @@ import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.art.AlienParts
 import com.technomancer.pangu.logic.art.EggMesh
 import com.technomancer.pangu.logic.creation.PetLook
+import com.technomancer.pangu.logic.personality.Personality
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.config.UiConfig
 import com.technomancer.pangu.logic.flow.ScreenId
@@ -74,6 +75,12 @@ class PresentationSystem(
     private val pedestalTransform = scene.pedestal?.transform()
     private val pedestalScale = pedestalTransform?.scaleVector ?: Vector3.ONE
     private val tipTransforms = scene.pet?.tips?.map { it.transform() }.orEmpty()
+    private val freckleTransforms = scene.pet?.freckles?.map { it.transform() }.orEmpty()
+    private val moteTransform = scene.pet?.shimmerMote?.transform()
+    private var shownPersonality: Personality? = null
+    private var freckleTint = -1
+    private var frecklesOn: Boolean? = null
+    private var shimmerStep = -1
     private val panelTransform = scene.infoPanel?.transform()
     private val labelTransform = scene.handleLabel?.transform()
     private val pieTransform = scene.pie?.transform()
@@ -144,6 +151,7 @@ class PresentationSystem(
             logic.flow.flow == FlowState.Hatching -> applyHatchling(logic)
             else -> applyPet(logic, petShown)
         }
+        applyPersonality(logic, petShown || logic.flow.flow == FlowState.Hatching)
         applyProps(logic.pet, petShown)
         applyDistress(logic, petShown)
 
@@ -225,6 +233,47 @@ class PresentationSystem(
         val rise = ((t - PanguLogic.HATCH_RISE_SEC) / HATCH_RISE_TIME).coerceIn(0f, 1f)
         val body = logic.pet.body
         petRoot?.setPosition(Vector3(body.position.x, HATCH_SINK * (1f - rise), body.position.z))
+    }
+
+    /** Freckles on the back and, for a shimmering pet, a tip that cycles through hues and drops a sparkle each second. */
+    private fun applyPersonality(logic: PanguLogic, shown: Boolean) {
+        val rig = scene.pet ?: return
+        val p = logic.pet.personality
+        val tip = logic.catalog.tipColor(logic.look)
+        if (p != shownPersonality || shown != frecklesOn) {
+            shownPersonality = p
+            frecklesOn = shown
+            freckleTransforms.forEachIndexed { i, t ->
+                val f = p.freckles.getOrNull(i)
+                if (!shown || f == null) {
+                    t?.setScaleVector(Vector3.ZERO)
+                } else {
+                    val (at, normal) = frecklePose(f.azimuth, f.height)
+                    t?.setPosition((at + normal * 0.01f).toSdk())
+                    t?.setQuaternion(Quat.fromTo(Vec3.UP, normal).toSdk())
+                    t?.setScaleVector(Vector3.ONE)
+                }
+            }
+        }
+        if (tip != freckleTint) {
+            freckleTint = tip
+            rig.freckles.forEach { meshes.tint(it, tip) }
+        }
+        if (shown && p.shimmer) {
+            val step = ((time / SHIMMER_SEC % 1.0) * SHIMMER_STEPS).toInt()
+            if (step != shimmerStep) {
+                shimmerStep = step
+                val c = hueShift(tip, step / SHIMMER_STEPS.toFloat())
+                rig.tipModels.forEach { meshes.tint(it, c) }
+            }
+            val phase = (time % 1.0).toFloat()
+            moteTransform?.setPosition((AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE + Vec3(0f, 0.25f + 0.5f * phase, 0f)).toSdk())
+            moteTransform?.setScaleVector(Vector3(1f - phase))
+        } else if (shimmerStep >= 0) {
+            shimmerStep = -1
+            rig.tipModels.forEach { meshes.tint(it, tip) }
+            moteTransform?.setScaleVector(Vector3.ZERO)
+        }
     }
 
     private fun orbAboveEgg(logic: PanguLogic): Vec3 {
@@ -344,6 +393,33 @@ class PresentationSystem(
         /** Gaps above the pet's head, as a fraction of its current height, so they stay close while it is small. */
         private const val ORB_GAP = 0.3f
         private const val ORB_ABOVE_EGG = 0.10f
+
+        private const val SHIMMER_SEC = 12.0
+        private const val SHIMMER_STEPS = 24
+
+        /** Body proxy for freckles: an ellipsoid around the body, model units. */
+        private val BODY_CENTRE = Vec3(0f, 1.16f, 0f)
+        private val BODY_AXES = Vec3(0.9f, 1.17f, 0.78f)
+
+        /** Point and outward normal on the body proxy at [azimuth] (0 = the face) and [height], model units. */
+        fun frecklePose(azimuth: Float, height: Float): Pair<Vec3, Vec3> {
+            val dy = (height - BODY_CENTRE.y) / BODY_AXES.y
+            val ring = kotlin.math.sqrt((1f - dy * dy).coerceAtLeast(0f))
+            val p = Vec3(BODY_AXES.x * ring * sin(azimuth), height, BODY_AXES.z * ring * kotlin.math.cos(azimuth))
+            val q = p - BODY_CENTRE
+            val n = Vec3(q.x / (BODY_AXES.x * BODY_AXES.x), q.y / (BODY_AXES.y * BODY_AXES.y), q.z / (BODY_AXES.z * BODY_AXES.z)).normalized()
+            return p to n
+        }
+
+        /** [rgb] with its hue turned by [turn] of a full circle (0..1), as 0xRRGGBB. */
+        fun hueShift(rgb: Int, turn: Float): Int {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(rgb or (0xFF shl 24), hsv)
+            hsv[0] = (hsv[0] + 360f * turn) % 360f
+            // Keep a little colour even for white or grey tips so the shimmer shows.
+            hsv[1] = hsv[1].coerceAtLeast(0.35f)
+            return android.graphics.Color.HSVToColor(hsv) and 0xFFFFFF
+        }
 
         /** The hatchling starts this far below the pad inside the egg (pad-local metres) and rises over [HATCH_RISE_TIME] seconds. */
         private const val HATCH_SINK = -0.05f

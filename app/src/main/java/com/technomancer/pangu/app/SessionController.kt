@@ -96,7 +96,7 @@ class SessionController(
         val pet = logic.pet
         val before = pet.needs.values.copyOf()
         val crumbsBefore = pet.needs.crumbs
-        cu.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config))
+        cu.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config), pet.modifiers, pet.sleepEndHour)
         pet.syncStage()
         logic.nowMs = now
         AwaySummary.of(before, pet.needs.values, crumbsBefore, pet.needs.crumbs, now - from, pet.config.welcomeBackMinMinutes)
@@ -134,6 +134,8 @@ class SessionController(
             look = logic.flow.look,
             lastLook = logic.flow.lastLook,
             egg = eggData,
+            micChoice = logic.micChoice,
+            personality = logic.pet.personality,
             padPose = padData,
             pet = petData,
             hatchedCount = logic.hatchedCount,

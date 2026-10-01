@@ -26,6 +26,19 @@ class LocServiceTest {
     }
 
     @Test
+    fun natureQuirkFoodKeysAllLanguages() {
+        val keys = (0 until 25).map { "nature.$it" } +
+            (0 until 10).flatMap { listOf("quirk.$it.name", "quirk.$it.desc") } +
+            (0 until 5).map { "food.$it" } + (0 until 4).map { "band.$it" } + listOf("quirk.line", "quirk.lineNone")
+        for (lang in Language.entries) {
+            for (k in keys) assertTrue(tables.getValue(lang)[k]?.isNotBlank() == true, "${lang.code}:$k missing")
+        }
+        assertEquals("Dreamy", tables.getValue(Language.En)["nature.10"])
+        assertEquals("梦幻", tables.getValue(Language.Zh)["nature.10"])
+        assertEquals("Soñador", tables.getValue(Language.Es)["nature.10"])
+    }
+
+    @Test
     fun missingKeyFallsBackToEn() {
         val missing = ArrayList<String>()
         val loc = LocService(

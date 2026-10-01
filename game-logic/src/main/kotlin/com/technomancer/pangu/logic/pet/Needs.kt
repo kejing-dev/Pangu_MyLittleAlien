@@ -35,7 +35,16 @@ class Needs(initial: List<Float>) {
 
 /** Per-need multipliers on decay; personality fills these in later. */
 class NeedModifiers {
+    /** Decay multiplier per stored need. */
     val decay = FloatArray(Needs.STORED) { 1f }
+
+    /** Gain multiplier per pet action, indexed by [PetAction] ordinal. */
+    val gain = FloatArray(PetAction.entries.size) { 1f }
+
+    /** Crumb interval multiplier: below 1 Tidy drops faster, above 1 slower. */
+    var crumbInterval = 1f
+
+    fun gain(action: PetAction): Float = gain[action.ordinal]
 
     companion object {
         val IDENTITY = NeedModifiers()
@@ -53,12 +62,12 @@ class NeedsSim(private val config: PetConfig) {
         if (asleep) needs.add(Need.Energy, config.nightSleepEnergyPerHour * hours)
     }
 
-    /** Night sleep runs from sleepStartHour to sleepEndHour local time (wrapping midnight). */
-    fun isNight(localHour: Int): Boolean =
-        if (config.sleepStartHour > config.sleepEndHour) {
-            localHour >= config.sleepStartHour || localHour < config.sleepEndHour
+    /** Night sleep runs from sleepStartHour to [endHour] local time (wrapping midnight). */
+    fun isNight(localHour: Int, endHour: Int = config.sleepEndHour): Boolean =
+        if (config.sleepStartHour > endHour) {
+            localHour >= config.sleepStartHour || localHour < endHour
         } else {
-            localHour >= config.sleepStartHour && localHour < config.sleepEndHour
+            localHour >= config.sleepStartHour && localHour < endHour
         }
 }
 

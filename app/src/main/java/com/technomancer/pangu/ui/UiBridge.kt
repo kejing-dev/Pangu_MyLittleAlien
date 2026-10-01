@@ -10,6 +10,7 @@ import com.technomancer.pangu.logic.pet.Mood
 import com.technomancer.pangu.logic.pet.Need
 import com.technomancer.pangu.logic.pet.PetAction
 import com.technomancer.pangu.logic.pet.Suggestions
+import com.technomancer.pangu.logic.personality.SparkValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -30,6 +31,21 @@ data class PetUi(
     val awayDrops: List<Triple<Need, Int, Int>> = emptyList(),
     val awayCrumbs: Int = 0,
     val awayMinutes: Long = 0,
+    /** The food it loves, or -1 when it likes them all the same. */
+    val likedFood: Int = -1,
+    val personality: PersonalityUi? = null,
+)
+
+/** The personality card (C22). */
+data class PersonalityUi(
+    val natureIndex: Int,
+    val quirk: Int,
+    val likedFood: Int,
+    val scores: List<Int>,
+    val up: Int,
+    val down: Int,
+    val neutral: Boolean,
+    val eggCode: String,
 )
 
 /** The studio panels: the look being designed, its name and each wheel's syllable. */
@@ -57,6 +73,18 @@ data class EggUi(
     val hatchTotal: Int,
     val cappedAction: EggAction,
     val suggested: EggAction?,
+    /** Ritual progress: song seconds, lullaby seconds, still seconds and polish circles, with their goals. */
+    val singSec: Int = 0,
+    val singTotal: Int = 10,
+    val lullabySec: Int = 0,
+    val lullabyTotal: Int = 10,
+    val crankTurns: Float = 0f,
+    val crankTotal: Float = 2f,
+    val listenSec: Int = 0,
+    val listenTotal: Int = 15,
+    val listening: Boolean = false,
+    val circles: Int = 0,
+    val circlesTotal: Int = 8,
     /** Welcome back: warmth band before and after, lamp hours left and minutes away; null when not shown. */
     val awayBands: Pair<WarmthBand, WarmthBand>? = null,
     val awayLampHours: Int = 0,
@@ -90,6 +118,20 @@ class UiBridge {
     private val _egg = MutableStateFlow<EggUi?>(null)
     val egg: StateFlow<EggUi?> = _egg
 
+    /** Live microphone level 0..1 for the C12 meter, refreshed about ten times a second. */
+    private val _micLevel = MutableStateFlow(0f)
+    val micLevel: StateFlow<Float> = _micLevel
+
+    /** Changes each time the app should ask for the microphone permission. */
+    private val _micRequest = MutableStateFlow(0)
+    val micRequest: StateFlow<Int> = _micRequest
+
+    /** Debug builds in the Emulator show "Complete step" on ritual panels. */
+    private val _assist = MutableStateFlow(false)
+    val assist: StateFlow<Boolean> = _assist
+
+    private var nextMicNanos = 0L
+
     /** Hatched, resting (dormant) and went-home counters. */
     private val _counters = MutableStateFlow(Triple(0, 0, 0))
     val counters: StateFlow<Triple<Int, Int, Int>> = _counters
@@ -115,15 +157,26 @@ class UiBridge {
                 wheels = listOf(logic.wheels.display(0, look.a), logic.wheels.display(1, look.b), logic.wheels.display(2, look.c)),
             )
         }
+        _micRequest.value = logic.micPermissionSerial
+        _assist.value = logic.debugAssist
         val now = System.nanoTime()
+        if (now >= nextMicNanos) {
+            nextMicNanos = now + MIC_PERIOD_NANOS
+            _micLevel.value = if (logic.micWanted) micRms else 0f
+        }
         if (now < nextPanelNanos) return
         nextPanelNanos = now + 1_000_000_000L / PANEL_HZ
         if (logic.isPetFlow) publishPet(logic)
         if (logic.isEggFlow || logic.egg.sealSec >= 0f) publishEgg(logic)
     }
 
+    /** Latest microphone level, set by the frame System. */
+    @Volatile
+    var micRms = 0f
+
     private fun publishPet(logic: PanguLogic) {
         val pet = logic.pet
+        val p = pet.personality
         _pet.value = PetUi(
             name = logic.petName,
             needs = Need.entries.map { pet.needs.value(it, pet.config).toInt() },
@@ -135,6 +188,17 @@ class UiBridge {
             awayDrops = logic.welcome?.drops?.map { Triple(it.first, it.second.first, it.second.second) }.orEmpty(),
             awayCrumbs = logic.welcome?.newCrumbs ?: 0,
             awayMinutes = logic.welcome?.minutesAway ?: 0,
+            likedFood = p.likedFood,
+            personality = PersonalityUi(
+                natureIndex = p.natureIndex,
+                quirk = p.quirk.ordinal,
+                likedFood = p.likedFood,
+                scores = p.scores,
+                up = p.up,
+                down = p.down,
+                neutral = p.neutral,
+                eggCode = SparkValue.code(p.sparkValue),
+            ),
         )
     }
 
@@ -159,6 +223,17 @@ class UiBridge {
             hatchTotal = config.hatchSec.toInt(),
             cappedAction = logic.cappedAction,
             suggested = logic.eggSuggestion(),
+            singSec = world.rituals.singSec.toInt(),
+            singTotal = config.singRequiredSec.toInt(),
+            lullabySec = world.rituals.lullabySec.coerceAtLeast(0f).toInt(),
+            lullabyTotal = config.musicBoxSec.toInt(),
+            crankTurns = world.rituals.crankTurns,
+            crankTotal = config.crankTurnsRequired,
+            listenSec = world.rituals.listenSec.toInt(),
+            listenTotal = config.listenRequiredSec.toInt(),
+            listening = world.rituals.listening,
+            circles = world.rituals.circles,
+            circlesTotal = config.polishCircles,
             awayBands = away?.let { it.bandBefore to it.bandAfter },
             awayLampHours = away?.lampHoursLeft ?: 0,
             awayMinutes = away?.minutesAway ?: 0,
@@ -171,5 +246,6 @@ class UiBridge {
 
     companion object {
         const val PANEL_HZ = 4
+        private const val MIC_PERIOD_NANOS = 100_000_000L
     }
 }

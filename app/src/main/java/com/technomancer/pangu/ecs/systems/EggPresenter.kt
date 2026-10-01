@@ -15,7 +15,9 @@ import com.technomancer.pangu.logic.art.EggMesh
 import com.technomancer.pangu.logic.art.GradientColors
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.incubation.EggCondition
+import com.technomancer.pangu.logic.incubation.EggAction
 import com.technomancer.pangu.logic.incubation.EggGauge
+import com.technomancer.pangu.logic.incubation.MicChoice
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
 import kotlin.math.PI
@@ -52,6 +54,8 @@ class EggPresenter(
     private val drapeT = props.drape.transform()
     private val beadT = props.beads.mapNotNull { it.transform() }
     private val beadColors = IntArray(props.beads.size) { -1 }
+    private val musicBoxT = props.musicBox.transform()
+    private val crankT = props.crank.transform()
     private val sparkDirs = List(EggFactory.SPARKLES) { i ->
         val a = i * 2.39996f
         val up = 0.4f + 0.6f * ((i * 37) % 11) / 10f
@@ -96,10 +100,12 @@ class EggPresenter(
             factory.setShell(rig, it)
             shellColor = shell
         }
+        // Speckles sit a little toward the body colour and brighten to the full tip colour while polishing.
+        val shine = (world.rituals.polishProgress * SHINE_STEPS).toInt() / SHINE_STEPS.toFloat()
         val speck = when (condition) {
             EggCondition.Dormant -> DORMANT
             EggCondition.Fading -> GradientColors.desaturate(tip, 0.5f)
-            else -> mix(tip, body, 0.3f)
+            else -> mix(tip, body, 0.3f * (1f - shine))
         }
         if (speck != speckleColor) {
             speckleColor = speck
@@ -171,6 +177,7 @@ class EggPresenter(
         updateSparkles(hatching, hatch, tip)
         updateMotes(condition == EggCondition.Dormant)
         updateBlanket(logic, flow)
+        updateMusicBox(logic)
         updateBeads(logic, condition, head, hatching || sealing || flow != FlowState.Incubation)
     }
 
@@ -228,6 +235,20 @@ class EggPresenter(
         }
     }
 
+    /** The music box appears beside the nest for the lullaby; its crank follows the hand. */
+    private fun updateMusicBox(logic: PanguLogic) {
+        val r = logic.egg.rituals
+        val shown = r.active == EggAction.Sing && r.singPath == MicChoice.MusicBox
+        musicBoxT?.apply {
+            setScaleVector(if (shown) Vector3(inv) else Vector3.ZERO)
+            setPosition(MUSIC_BOX_AT)
+        }
+        if (shown) {
+            val spin = if (r.lullabySec >= 0f) -r.lullabySec * 2f else -r.crank.angle
+            crankT?.setQuaternion(Quat.fromYaw(spin).toSdk())
+        }
+    }
+
     /** Lights beads on the nest rim for the warmth band, hiding the ones behind the egg as seen from [head]. */
     private fun updateBeads(logic: PanguLogic, condition: EggCondition, head: Vector3?, hidden: Boolean) {
         if (hidden) {
@@ -263,6 +284,9 @@ class EggPresenter(
         private const val INK = 0x2F2826
         private const val BUTTER = 0xF2DE9B
         private const val SPARKLE_SEC = 2.5f
+        private const val SHINE_STEPS = 8
+        /** Where the music box stands, pad-local metres: front right of the nest. */
+        private val MUSIC_BOX_AT = Vector3(0.12f, 0f, 0.1f)
 
         /** Nest rim radius and bead height in pad-local metres. */
         private const val NEST_RIM = 0.092f

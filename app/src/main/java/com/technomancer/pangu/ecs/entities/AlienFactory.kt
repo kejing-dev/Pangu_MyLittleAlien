@@ -9,12 +9,14 @@ import com.pico.spatial.core.ecs.ModelComponent
 import com.pico.spatial.core.ecs.TransformComponent
 import com.pico.spatial.core.ecs.resource.PhysicsMaterialResource
 import com.pico.spatial.core.ecs.resource.ShapeResource
+import com.pico.spatial.core.math.Vector3
 import com.technomancer.pangu.ecs.components.TagComponent
 import com.technomancer.pangu.ecs.toSdk
 import com.technomancer.pangu.logic.art.AlienParts
 import com.technomancer.pangu.logic.art.GlbParser
 import com.technomancer.pangu.logic.art.MeshData
 import com.technomancer.pangu.logic.art.OutlineHull
+import com.technomancer.pangu.logic.art.PrimitiveMeshes
 import com.technomancer.pangu.logic.art.ToonBake
 import com.technomancer.pangu.logic.art.ToonParams
 import com.technomancer.pangu.logic.input.TargetId
@@ -32,6 +34,10 @@ class AlienRig(
     val tips: List<Entity>,
     /** The tip model of each shape, tinted with the tip colour. */
     val tipModels: List<Entity>,
+    /** Four freckle discs on the back, placed and shown from the personality. */
+    val freckles: List<Entity> = emptyList(),
+    /** A small sparkle that drifts up from the tip of a shimmering pet. */
+    val shimmerMote: Entity? = null,
 )
 
 /**
@@ -67,6 +73,8 @@ class AlienFactory(private val meshes: MeshFactory) {
         add(MOUTH, parts[AlienParts.MOUTH])
         add(BLUSH, parts[AlienParts.BLUSH])
         add(BODY_OUTLINE, parts[AlienParts.BODY]?.let { OutlineHull.build(it, 0.012f) })
+        add(FRECKLE, PrimitiveMeshes.disc(FRECKLE_RADIUS, segments = 16))
+        add(MOTE, PrimitiveMeshes.octahedron(0.06f))
         baked = out
         tipShapes = AlienParts.TIPS.indices.mapNotNull { i -> out[tipKey(i)]?.let { tipKey(i) to it } }
     }
@@ -113,15 +121,22 @@ class AlienFactory(private val meshes: MeshFactory) {
         }
         body.addChild(antenna)
 
+        val freckles = List(4) { i -> part(FRECKLE, WHITE)!!.also { it.setName("Pet_Freckle$i"); hide(it); body.addChild(it) } }
+        val mote = part(MOTE, WHITE)?.also { hide(it); antenna.addChild(it) }
+
         // Touch targets: the body capsule and the antenna tip.
         body.addChild(collider("PetBodyCollider", Vec3(0f, 1.16f, 0f), TargetId.PET_BODY) { ShapeResource.createCapsule(2.3f, 0.85f) })
         antenna.addChild(collider("PetTipCollider", AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE + Vec3(0f, 0.12f, 0f), TargetId.PET_TIP) { ShapeResource.createSphere(0.3f) })
-        return AlienRig(root, body, eyes, antenna, bodyModels, tips, tipModels)
+        return AlienRig(root, body, eyes, antenna, bodyModels, tips, tipModels, freckles, mote)
     }
 
     private fun part(key: String, color: Int, offset: Vec3 = Vec3.ZERO): Entity? {
         val data = baked[key] ?: return null
         return meshes.model(key, data, color, offset.toSdk())
+    }
+
+    private fun hide(e: Entity) {
+        e.components[TransformComponent::class.java]?.setScaleVector(Vector3.ZERO)
     }
 
     private fun pivot(name: String, at: Vec3) = Entity().apply {
@@ -152,6 +167,11 @@ class AlienFactory(private val meshes: MeshFactory) {
         private const val HIGHLIGHTS = "Pet_Highlights"
         private const val MOUTH = "Pet_Mouth"
         private const val BLUSH = "Pet_Blush"
+        private const val FRECKLE = "Pet_Freckle"
+        private const val MOTE = "Pet_ShimmerMote"
+
+        /** Freckle radius in model units. */
+        const val FRECKLE_RADIUS = 0.07f
 
         fun tipKey(shape: Int) = "Pet_TipShape$shape"
         private fun tipOutlineKey(shape: Int) = "Pet_TipOutline$shape"

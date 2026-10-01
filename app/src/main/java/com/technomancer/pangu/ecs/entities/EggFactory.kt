@@ -55,6 +55,9 @@ class NestProps(
     val drape: Entity,
     val beads: List<Entity>,
     val pedestal: Entity,
+    /** The music box (shown for the music-box lullaby) and the pivot its crank turns on. */
+    val musicBox: Entity,
+    val crank: Entity,
 )
 
 /**
@@ -77,6 +80,10 @@ class EggFactory(private val meshes: MeshFactory) {
             DRAPE to PrimitiveMeshes.halfDome(0.052f, 0.078f),
             PEDESTAL to PrimitiveMeshes.cylinder(PEDESTAL_RADIUS, PEDESTAL_HEIGHT, segments = 64, bottomY = -PEDESTAL_HEIGHT),
             PEDESTAL_RIM to PrimitiveMeshes.torus(PEDESTAL_RADIUS, 0.0015f, segments = 64, sides = 6),
+            MUSIC_BOX to PrimitiveMeshes.box(0.06f, 0.04f, 0.045f),
+            MUSIC_BOX_LID to PrimitiveMeshes.box(0.064f, 0.006f, 0.049f),
+            CRANK_ARM to PrimitiveMeshes.box(0.022f, 0.004f, 0.005f),
+            CRANK_KNOB to PrimitiveMeshes.sphere(0.006f, rings = 8, segments = 12),
         ) + crackSegments()
     }
 
@@ -226,7 +233,26 @@ class EggFactory(private val meshes: MeshFactory) {
             addChild(part(PEDESTAL_RIM, INK))
             transform()?.setScaleVector(inv)
         }
-        return NestProps(blanket, drape, beads, pedestal)
+        val musicBox = Entity().apply {
+            setName(MUSIC_BOX)
+            transform()?.setScaleVector(Vector3.ZERO)
+            addChild(part(MUSIC_BOX, MUSIC_BOX_COLOR, Vector3(0f, 0.02f, 0f)))
+            addChild(part(MUSIC_BOX_LID, INK, Vector3(0f, 0.043f, 0f)))
+        }
+        // The crank turns on a vertical axis on the lid; the knob is what you grab.
+        val crank = Entity().apply {
+            setName("PH_MusicBoxCrank")
+            transform()?.setPosition(Vector3(0f, 0.05f, 0f))
+            addChild(part(CRANK_ARM, INK, Vector3(0.011f, 0f, 0f)))
+            addChild(part(CRANK_KNOB, BUTTER, Vector3(0.022f, 0.004f, 0f)).apply {
+                components.set(InteractableComponent())
+                components.set(CollisionComponent(listOf(ShapeResource.createSphere(0.025f)), PhysicsMaterialResource()))
+                components.set(HoverEffectComponent())
+                components.set(TagComponent(TargetId.CRANK))
+            })
+        }
+        musicBox.addChild(crank)
+        return NestProps(blanket, drape, beads, pedestal, musicBox, crank)
     }
 
     private val glowMaterials = HashMap<Int, UnlitMaterial>()
@@ -265,6 +291,12 @@ class EggFactory(private val meshes: MeshFactory) {
         private const val DRAPE = "PH_BlanketDrape"
         private const val PEDESTAL = "PH_Pedestal"
         private const val PEDESTAL_RIM = "PH_PedestalRim"
+        private const val MUSIC_BOX = "PH_MusicBox"
+        private const val MUSIC_BOX_LID = "PH_MusicBoxLid"
+        private const val CRANK_ARM = "PH_MusicBoxCrankArm"
+        private const val CRANK_KNOB = "PH_MusicBoxCrankKnob"
+        private const val MUSIC_BOX_COLOR = 0xC9B7DA
+        private const val BUTTER = 0xF2DE9B
 
         const val SPARKLES = 40
         const val PEDESTAL_RADIUS = 0.105f

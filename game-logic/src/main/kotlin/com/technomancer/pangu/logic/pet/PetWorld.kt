@@ -4,7 +4,13 @@ import com.technomancer.pangu.logic.art.AlienParts
 import com.technomancer.pangu.logic.audio.Sfx
 import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.gestures.RubDetector
+import com.technomancer.pangu.logic.config.PersonalityConfig
 import com.technomancer.pangu.logic.math.Vec3
+import com.technomancer.pangu.logic.personality.Personality
+import com.technomancer.pangu.logic.personality.PersonalityEffects
+import com.technomancer.pangu.logic.personality.Quirk
+import kotlin.math.atan2
+import kotlin.math.sin
 import com.technomancer.pangu.logic.time.IRandom
 import kotlin.math.sqrt
 
@@ -43,6 +49,7 @@ class PetWorld(
     private val events: PetEvents,
     /** The habitat is drawn this many times larger than its pad-local units. */
     private val displayScale: Float = 1f,
+    private val personalityConfig: PersonalityConfig = PersonalityConfig(),
 ) {
     val needs = Needs(config.startNeeds)
     val actions = PetActions(config)
@@ -59,6 +66,20 @@ class PetWorld(
 
     /** Simulated epoch ms when the pet hatched; drives growth. */
     var hatchMs = 0L
+
+    /** Who this pet is; set at hatch and on load. */
+    var personality: Personality = Personality.DEFAULT
+        private set
+
+    /** Need decay and action gain multipliers from the personality. */
+    var modifiers: NeedModifiers = NeedModifiers.IDENTITY
+        private set
+
+    /** Local hour night sleep ends (earlier for an Early Riser). */
+    var sleepEndHour: Int = config.sleepEndHour
+        private set
+
+    private var watchClock = 0f
 
     val foods = List(FOOD_COUNT) { i -> Food(i, Vec3(TRAY_CENTRE.x - 0.05f + i * 0.025f, TRAY_CENTRE.y + 0.012f, TRAY_CENTRE.z)) }
 
@@ -86,13 +107,38 @@ class PetWorld(
     fun scale(nowMs: Long): Float {
         val hours = ((nowMs - hatchMs) / 3_600_000f).coerceAtLeast(0f)
         val growth = config.hatchGrowth + (1f - config.hatchGrowth) * (hours / config.growthHours).coerceIn(0f, 1f)
-        return config.adultHeight / AlienParts.MODEL_HEIGHT * growth
+        return config.adultHeight / AlienParts.MODEL_HEIGHT * personality.sizeFactor * growth
     }
 
     /** Pad-local units per model unit: the real size divided by the habitat display scale. */
     fun localScale(nowMs: Long): Float = scale(nowMs) / displayScale
 
     fun mood(): Mood = mood.mood(moodScore)
+
+    /** Gives the pet its personality: need and action multipliers, dance style and quirks. */
+    fun applyPersonality(p: Personality) {
+        personality = p
+        modifiers = PersonalityEffects.modifiers(p, personalityConfig)
+        actions.modifiers = modifiers
+        crumbs.intervalMultiplier = modifiers.crumbInterval
+        body.danceSpins = p.danceSpins
+        val c = personalityConfig
+        sleepEndHour = if (p.quirk == Quirk.EarlyRiser) c.earlyRiserHour else config.sleepEndHour
+        body.hiccups = p.quirk == Quirk.SparkleHiccups
+        body.hiccupHeight = c.hiccupHeight / displayScale
+        body.hiccupMinSec = c.hiccupMinSec
+        body.hiccupMaxSec = c.hiccupMaxSec
+        body.blinkIntervalScale = if (p.quirk == Quirk.SlowBlinker) c.slowBlinkInterval else 1f
+        body.blinkDurationScale = if (p.quirk == Quirk.SlowBlinker) c.slowBlinkDuration else 1f
+    }
+
+    /** Night sleep, ending at this pet's wake-up hour. */
+    fun isNight(localHour: Int): Boolean = needsSim.isNight(localHour, sleepEndHour)
+
+    /** Waves hello if this pet has the Welcome Wave quirk. */
+    fun welcomeBack() {
+        if (personality.quirk == Quirk.WelcomeWave) body.wave()
+    }
 
     fun stage(): Distress = stage
 
@@ -138,7 +184,7 @@ class PetWorld(
         val activity = actions.activity
         val asleep = isNight || activity == PetActivity.Napping
         val hours = dt / 3600f
-        needsSim.step(needs, hours, asleep)
+        needsSim.step(needs, hours, asleep, modifiers)
         if (crumbs.update(hours, !asleep)) needs.crumbs = crumbs.positions.size
 
         if (activity == PetActivity.Dancing) motion.add(motionPoints, dt)
@@ -149,7 +195,8 @@ class PetWorld(
 
         updateAutonomy(dt, nowMs)
         if (actions.activity == PetActivity.Playing || (ballOut && !ball.held)) updateBall(dt)
-        body.update(dt, actions.activity, headLocal, stage)
+        updateQuirks(dt, isNight, headLocal)
+        body.update(dt, actions.activity, facingFor(headLocal, pokes), stage)
         updateFoods(dt, nowMs)
         if (actions.activity == PetActivity.Cuddling &&
             rubbing(stroke, nowMs, dt, pokes, config.strokeMinModelY) &&
@@ -173,6 +220,41 @@ class PetWorld(
         }
     }
 
+    /** Antenna Radar points the antenna at the player; Night Watcher looks at the sky now and then at night. */
+    private fun updateQuirks(dt: Float, isNight: Boolean, headLocal: Vec3?) {
+        val c = personalityConfig
+        body.antennaRest = if (personality.quirk == Quirk.AntennaRadar && headLocal != null) {
+            val rel = atan2(headLocal.x - body.position.x, headLocal.z - body.position.z) - body.yaw
+            // The antenna swings sideways, so lean it toward whichever side the player is on.
+            (-sin(rel) * RADAR_LEAN).coerceIn(-RADAR_LEAN, RADAR_LEAN)
+        } else {
+            0f
+        }
+        if (personality.quirk == Quirk.NightWatcher && isNight && actions.activity != PetActivity.Napping) {
+            watchClock += dt
+            if (watchClock >= c.watchEverySec) watchClock -= c.watchEverySec
+            body.watchingSky = watchClock < c.watchSec
+        } else {
+            body.watchingSky = false
+        }
+    }
+
+    /** What the pet turns to face: the player's head, or for a Hand Follower the nearest hand within reach. */
+    private fun facingFor(headLocal: Vec3?, pokes: List<Vec3>): Vec3? {
+        if (personality.quirk != Quirk.HandFollower) return headLocal
+        val reach = personalityConfig.handFollowDistance / displayScale
+        var best: Vec3? = null
+        var bestDistance = reach
+        for (p in pokes) {
+            val d = p.distanceTo(body.position)
+            if (d < bestDistance) {
+                bestDistance = d
+                best = p
+            }
+        }
+        return best ?: headLocal
+    }
+
     private fun onFinished(activity: PetActivity) {
         when (activity) {
             PetActivity.Eating -> events.sound(Sfx.Happy)
@@ -190,7 +272,8 @@ class PetWorld(
 
     private fun updateAutonomy(dt: Float, nowMs: Long) {
         val idle = actions.activity == PetActivity.Idle && body.goal == null
-        when (autonomy.update(dt, needs, idle, ballOut)) {
+        val napBelow = if (personality.quirk == Quirk.NapLover) personalityConfig.napLoverEnergy else 30f
+        when (autonomy.update(dt, needs, idle, ballOut, napBelow)) {
             Autonomy.Nap -> {
                 actions.startNap(nowMs, config.autonomyEfficiency)
                 events.sound(Sfx.Sleepy)
@@ -247,11 +330,20 @@ class PetWorld(
         for (f in foods) {
             if (f.eaten) continue
             if (f.held && f.position.distanceTo(mouth) <= reach) {
-                when (val r = actions.startEat(needs, nowMs)) {
+                when (val r = actions.startEat(needs, nowMs, PersonalityEffects.foodGain(personality, f.index, personalityConfig))) {
                     ActionResult.Started -> {
                         f.eaten = true
                         f.held = false
-                        events.sound(Sfx.Happy)
+                        when (f.index) {
+                            personality.likedFood -> {
+                                // A favourite: a happy wiggle and a little Fun.
+                                needs.add(Need.Fun, personalityConfig.likedFunBonus)
+                                body.wave()
+                                events.sound(Sfx.Happy)
+                            }
+                            personality.dislikedFood -> events.sound(Sfx.Sad)
+                            else -> events.sound(Sfx.Happy)
+                        }
                     }
                     is ActionResult.Refused -> if (r.reason == "full") {
                         events.sound(Sfx.Sad)
@@ -337,5 +429,6 @@ class PetWorld(
         private const val RUB_MIN_SPEED = 0.10f
         private const val BOOP_KICK = 4f
         private const val NUDGE_REACH = 0.04f
+        private const val RADAR_LEAN = 0.5f
     }
 }

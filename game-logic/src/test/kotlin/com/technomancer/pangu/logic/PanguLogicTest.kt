@@ -3,6 +3,7 @@ package com.technomancer.pangu.logic
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.incubation.EggAction
+import com.technomancer.pangu.logic.incubation.MicChoice
 import com.technomancer.pangu.logic.input.LookPick
 import com.technomancer.pangu.logic.habitat.PadPose
 import com.technomancer.pangu.logic.input.InputSnapshot
@@ -129,7 +130,64 @@ class PanguLogicTest {
         assertEquals(FlowState.Hatching, logic.flow.flow)
         step(8.2f)
         assertEquals(FlowState.Pet, logic.flow.flow)
+        assertEquals(ScreenId.C22, logic.screens.current)
+        events.push(InteractionType.UiPrimary)
+        step(0.1f)
         assertEquals(ScreenId.C23, logic.screens.current)
         assertEquals(1, logic.hatchedCount)
+    }
+
+    @Test
+    fun ritualsCountCapAndMusicBox() {
+        val logic = PanguLogic(startScreen = ScreenId.C05)
+        logic.flow.flow = FlowState.Creation
+        logic.placePad(PadPose(Vec3(0f, 0.9f, -0.75f), 0f))
+        logic.debugAssist = true
+        fun step(sec: Float, dt: Float = 0.1f) = repeat((sec / dt).toInt()) { logic.tick(dt, input, events) }
+        events.push(InteractionType.UiPrimary)
+        step(3.5f)
+        assertEquals(ScreenId.C07, logic.screens.current)
+
+        // Sing the first time asks how; the music box path needs two crank turns and a 10 s lullaby.
+        events.push(InteractionType.Tap, TargetId.CARE_ORB)
+        events.push(InteractionType.UiPie, EggAction.Sing.ordinal)
+        step(0.1f)
+        assertEquals(ScreenId.C11, logic.screens.current)
+        events.push(InteractionType.UiSecondary)
+        step(0.1f)
+        assertEquals(ScreenId.C13, logic.screens.current)
+        assertEquals(MicChoice.MusicBox, logic.micChoice)
+        events.push(InteractionType.DragStart, TargetId.CRANK)
+        val r = 0.02f // drag moves arrive in Stage metres
+        for (i in 1..80) {
+            val a = 2f * Math.PI.toFloat() * i / 36f
+            val b = 2f * Math.PI.toFloat() * (i - 1) / 36f
+            events.push(InteractionType.DragMove, TargetId.CRANK, Vec3(r * (kotlin.math.cos(a) - kotlin.math.cos(b)), 0f, r * (kotlin.math.sin(a) - kotlin.math.sin(b))))
+            if (i % 20 == 0) step(0.1f) // the event queue holds 64 events per frame
+        }
+        step(0.1f)
+        assertTrue(logic.egg.rituals.lullabySec >= 0f)
+        step(10.5f)
+        assertEquals(ScreenId.C07, logic.screens.current)
+        assertEquals(1, logic.egg.ledger.ritualsToday)
+        assertEquals(12, logic.egg.ledger.imprint[0])
+
+        // Listen three times (10 minutes apart), then the fourth shows C16.
+        repeat(3) {
+            events.push(InteractionType.Tap, TargetId.CARE_ORB)
+            events.push(InteractionType.UiPie, EggAction.Listen.ordinal)
+            step(0.1f)
+            assertEquals(ScreenId.C14, logic.screens.current)
+            events.push(InteractionType.UiAssist)
+            step(0.1f)
+            assertEquals(ScreenId.C07, logic.screens.current)
+            logic.nowMs += 11 * 60_000L
+        }
+        assertEquals(4, logic.egg.ledger.ritualsToday)
+        events.push(InteractionType.Tap, TargetId.CARE_ORB)
+        events.push(InteractionType.UiPie, EggAction.Listen.ordinal)
+        step(0.1f)
+        assertEquals(ScreenId.C16, logic.screens.current)
+        assertEquals(EggAction.Listen, logic.cappedAction)
     }
 }

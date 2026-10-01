@@ -8,7 +8,9 @@ import com.technomancer.pangu.app.Haptics
 import com.technomancer.pangu.app.SceneHandles
 import com.technomancer.pangu.app.ServiceRegistry
 import com.technomancer.pangu.app.SessionController
+import com.technomancer.pangu.audio.MicService
 import com.technomancer.pangu.audio.SfxPlayer
+import com.technomancer.pangu.logic.input.InteractionType
 import com.technomancer.pangu.logic.HapticCue
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.config.InputConfig
@@ -32,6 +34,8 @@ class PanguFrameSystem : System() {
     private val inputConfig: InputConfig = ServiceRegistry.resolve()
     private val session: SessionController = ServiceRegistry.resolve()
     private val debug: DebugFlags = ServiceRegistry.resolve()
+    private val mic: MicService = ServiceRegistry.resolve()
+    private var micOn = false
     private var nextLogNanos = 0L
     private var autosaveSec = 0f
 
@@ -41,6 +45,7 @@ class PanguFrameSystem : System() {
         val dt = context.deltaTime.coerceIn(0f, MAX_DT) * debug.timeScale
 
         scene.input?.collect(snapshot)
+        updateMic()
         logic.tick(dt, snapshot, events)
         scene.presentation?.apply(logic, snapshot, dt)
         ui.publishIfChanged(logic)
@@ -53,6 +58,7 @@ class PanguFrameSystem : System() {
             HapticCue.Crack -> haptics.play(inputConfig.tapToCrack)
             null -> Unit
         }
+        sfx.voicePitch = logic.pet.personality.voicePitch
         while (true) sfx.play(logic.nextSound() ?: break)
         sfx.setLoop(if (logic.isPaused) null else logic.danceMusic)
 
@@ -69,6 +75,21 @@ class PanguFrameSystem : System() {
                 Log.i(TAG, "tick=${logic.tickCount} dt=${context.deltaTime} screen=${logic.screens.current}")
             }
         }
+    }
+
+    /** Reads the microphone only while the player is singing to the egg (C12). */
+    private fun updateMic() {
+        val want = logic.micWanted
+        if (want && !micOn) {
+            micOn = mic.start()
+            // No permission any more: ask again through C11.
+            if (!micOn) events.push(InteractionType.UiMic, 0)
+        } else if (!want && micOn) {
+            mic.stop()
+            micOn = false
+        }
+        snapshot.micRms = if (micOn) mic.rms else 0f
+        ui.micRms = snapshot.micRms
     }
 
     companion object {

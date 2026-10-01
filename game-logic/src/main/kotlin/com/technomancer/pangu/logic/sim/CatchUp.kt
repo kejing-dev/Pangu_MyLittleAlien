@@ -32,6 +32,7 @@ class CatchUp(private val sim: SimConfig, private val needsSim: NeedsSim, privat
         distress: DistressTracker? = null,
         mood: MoodCalculator? = null,
         modifiers: NeedModifiers = NeedModifiers.IDENTITY,
+        sleepEndHour: Int? = null,
     ): Int {
         if (toMs <= fromMs) return 0
         val stepMs = sim.simStepSec * 1000L
@@ -40,7 +41,9 @@ class CatchUp(private val sim: SimConfig, private val needsSim: NeedsSim, privat
         val stepHours = sim.simStepSec / 3600f
         var steps = 0
         while (t + stepMs <= toMs) {
-            val asleep = needsSim.isNight(clock.localHour(t)) || actions.napEndMs > t
+            val hour = clock.localHour(t)
+            val night = if (sleepEndHour != null) needsSim.isNight(hour, sleepEndHour) else needsSim.isNight(hour)
+            val asleep = night || actions.napEndMs > t
             needsSim.step(needs, stepHours, asleep, modifiers)
             actions.update(needs, t + stepMs, sim.simStepSec.toFloat())
             if (crumbs != null && crumbs.update(stepHours, !asleep)) needs.crumbs = crumbs.positions.size

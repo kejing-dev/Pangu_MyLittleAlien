@@ -91,6 +91,26 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     /** While true the pet stays where it is (hatching out of the egg). */
     var holdStill = false
 
+    /** Quirks that change the body's habits; set from the personality. */
+    var blinkIntervalScale = 1f
+    var blinkDurationScale = 1f
+
+    /** Sparkle Hiccups: a little hop of [hiccupHeight] every [hiccupMinSec]–[hiccupMaxSec] while idle. */
+    var hiccups = false
+    var hiccupHeight = 0.03f
+    var hiccupMinSec = 40f
+    var hiccupMaxSec = 90f
+    private var hiccupIn = 60f
+    private var hiccupT = -1f
+
+    /** Where the antenna leans at rest, radians (the Antenna Radar quirk points it at the player). */
+    var antennaRest = 0f
+
+    /** True while the pet gazes up at the sky (the Night Watcher quirk). */
+    var watchingSky = false
+
+    private var waveT = -1f
+
     /** Dance style: false wiggles, true spins. */
     var danceSpins = false
 
@@ -124,6 +144,11 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         time += dt
         breathScale = 1f + 0.012f * sin(1.6f * time)
         roll = 0.03f * sin(0.9f * time) + if (activity == PetActivity.Napping) NAP_ROLL else 0f
+        if (waveT >= 0f) {
+            waveT += dt
+            roll += WAVE_ROLL * sin(2f * PI.toFloat() * 2f * waveT) * (1f - waveT / WAVE_SEC)
+            if (waveT >= WAVE_SEC) waveT = -1f
+        }
         updateAntenna(dt)
         updateBlink(dt, activity == PetActivity.Napping)
         if (distress == Distress.WentHome) {
@@ -142,7 +167,11 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         lift = if (sad) SLUMP else 0f
         droop = if (sad) DROOP else 0f
         // Homesick: a slow, small tilt back to look at the sky.
-        pitch = if (distress == Distress.Homesick) LOOK_UP * (0.6f + 0.4f * sin(0.5f * time)) else 0f
+        pitch = when {
+            distress == Distress.Homesick -> LOOK_UP * (0.6f + 0.4f * sin(0.5f * time))
+            watchingSky -> LOOK_UP
+            else -> 0f
+        }
     }
 
     /** Dance moves on a 110 BPM beat: a roll wiggle, or a full turn every two bars with hops. */
@@ -173,7 +202,7 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
 
     private fun updateAntenna(dt: Float) {
         // Damped spring toward rest, plus a gentle idle wobble.
-        val accel = -SPRING_K * antennaAngle - SPRING_DAMPING * antennaVelocity
+        val accel = -SPRING_K * (antennaAngle - antennaRest) - SPRING_DAMPING * antennaVelocity
         antennaVelocity += accel * dt
         antennaAngle += antennaVelocity * dt
         antennaAngle = antennaAngle.coerceIn(-0.8f, 0.8f)
@@ -187,11 +216,12 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         }
         if (blinkT >= 0f) {
             blinkT += dt
-            eyeOpen = if (blinkT < BLINK_SEC / 2) 1f - 0.9f * (blinkT / (BLINK_SEC / 2)) else 0.1f + 0.9f * ((blinkT - BLINK_SEC / 2) / (BLINK_SEC / 2))
-            if (blinkT >= BLINK_SEC) {
+            val blink = BLINK_SEC * blinkDurationScale
+            eyeOpen = if (blinkT < blink / 2) 1f - 0.9f * (blinkT / (blink / 2)) else 0.1f + 0.9f * ((blinkT - blink / 2) / (blink / 2)).coerceAtMost(1f)
+            if (blinkT >= blink) {
                 blinkT = -1f
                 eyeOpen = 1f
-                nextBlink = random.nextFloat(3f, 6f)
+                nextBlink = random.nextFloat(3f, 6f) * blinkIntervalScale
             }
         } else {
             eyeOpen = 1f
@@ -202,6 +232,7 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
 
     private fun updateMotion(dt: Float, activity: PetActivity, facing: Vec3?) {
         if (holdStill) return
+        if (updateHiccup(dt, activity)) return
         if (hopT >= 0f) {
             hopT += dt / config.hopSec
             val t = hopT.coerceAtMost(1f)
@@ -244,6 +275,35 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         }
     }
 
+    /** Sparkle Hiccups: a straight-up hop now and then while the pet is idle and standing still. */
+    private fun updateHiccup(dt: Float, activity: PetActivity): Boolean {
+        if (hiccupT >= 0f) {
+            hiccupT += dt / HICCUP_SEC
+            val t = hiccupT.coerceAtMost(1f)
+            hopHeight = hiccupHeight * 4f * t * (1f - t)
+            if (hiccupT >= 1f) {
+                hiccupT = -1f
+                hopHeight = 0f
+                kickAntenna(HOP_KICK)
+            }
+            return true
+        }
+        if (!hiccups || activity != PetActivity.Idle || hopT >= 0f) return false
+        hiccupIn -= dt
+        if (hiccupIn <= 0f) {
+            hiccupIn = random.nextFloat(hiccupMinSec, hiccupMaxSec)
+            hiccupT = 0f
+            return true
+        }
+        return false
+    }
+
+    /** A happy side-to-side wave, e.g. when the player comes back. */
+    fun wave() {
+        waveT = 0f
+        kickAntenna(HOP_KICK)
+    }
+
     private fun turnToward(current: Float, goal: Float, dt: Float): Float {
         var d = goal - current
         while (d > PI) d -= (2 * PI).toFloat()
@@ -272,6 +332,9 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         private const val SPRING_K = 40f
         private const val SPRING_DAMPING = 6f
         private const val BLINK_SEC = 0.08f
+        private const val HICCUP_SEC = 0.3f
+        private const val WAVE_SEC = 2f
+        private const val WAVE_ROLL = 0.25f
         private const val HOP_KICK = 3.2f
         private const val ARRIVE = 0.02f
         private const val MAX_HOP = 0.07f

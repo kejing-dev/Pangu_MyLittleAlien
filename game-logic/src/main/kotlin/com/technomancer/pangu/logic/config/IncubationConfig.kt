@@ -36,8 +36,25 @@ data class IncubationConfig(
     /** A released egg snaps into the nest within this distance, otherwise floats back over [floatBackSec]. */
     val eggSnapDistance: Float = 0.10f,
     val floatBackSec: Float = 0.6f,
-    /** Heartbeat interval while the egg is held. */
+    /** Heartbeat interval while the egg is held or listened to. */
     val heartbeatIntervalSec: Float = 0.9f,
+
+    /** Sing: seconds of voice at or above the level threshold, with the head this close to the egg (metres). */
+    val singRequiredSec: Float = 10f,
+    val micRmsThreshold: Float = 0.02f,
+    val singMaxDistance: Float = 0.8f,
+    /** Music box: turns of the crank that start the lullaby, and how long it plays. */
+    val crankTurnsRequired: Float = 2f,
+    val musicBoxSec: Float = 10f,
+    /** Listen: head within this distance of the egg, slower than these speeds, for this long. */
+    val listenMaxDistance: Float = 0.30f,
+    val listenMaxSpeed: Float = 0.05f,
+    val listenMaxAngularSpeed: Float = 15f,
+    val listenRequiredSec: Float = 15f,
+    /** Polish: a fingertip within this distance of the shell, moving at least this fast, for this many circles. */
+    val rubMaxDistance: Float = 0.02f,
+    val rubMinSpeed: Float = 0.10f,
+    val polishCircles: Int = 8,
 
     /** Imprint points per completion for Zest, Cuddle, Wonder, Calm, Neat, keyed by action. */
     val imprintTable: Map<String, List<Int>> = mapOf(

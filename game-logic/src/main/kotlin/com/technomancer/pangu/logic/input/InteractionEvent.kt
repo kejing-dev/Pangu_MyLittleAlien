@@ -13,6 +13,7 @@ object TargetId {
     const val LAMP_BULB = 6
     const val BLANKET = 7
     const val EGG = 8
+    const val CRANK = 9
 
     /** Crumbs use CRUMB_FIRST + index. */
     const val CRUMB_FIRST = 30
@@ -44,6 +45,15 @@ enum class InteractionType {
 
     /** A name wheel; the target field holds the wheel index 0..2. */
     UiWheel,
+
+    /** The microphone permission answer; the target field is 1 when granted. */
+    UiMic,
+
+    /** Debug "Complete step" on a ritual panel in the Emulator. */
+    UiAssist,
+
+    /** The "?" on the needs panel: show the personality card again. */
+    UiInfo,
 }
 
 /** One input event. [delta] is the drag movement since the previous event, in Stage space; [timeNanos] when it happened. */

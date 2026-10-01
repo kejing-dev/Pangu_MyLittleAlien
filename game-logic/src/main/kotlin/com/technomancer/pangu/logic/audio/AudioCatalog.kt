@@ -3,7 +3,7 @@ package com.technomancer.pangu.logic.audio
 import java.io.File
 
 /** Sounds the game plays. Pet chirps exist at several voice-pitch steps; see [chirpId]. */
-enum class Sfx { Happy, Question, Sad, Sleepy, UiTick, UiConfirm, DanceWiggle, DanceSpin, WentHome, Heartbeat, CrackTap, Fanfare, DormantChime }
+enum class Sfx { Happy, Question, Sad, Sleepy, UiTick, UiConfirm, DanceWiggle, DanceSpin, WentHome, Heartbeat, CrackTap, Fanfare, DormantChime, Lullaby, Sparkle }
 
 /** Every procedural sound, by asset id (file name without .wav). */
 object AudioCatalog {
@@ -47,7 +47,19 @@ object AudioCatalog {
         Sfx.DormantChime to listOf(784f, 659.25f, 523.25f).mapIndexed { i, f ->
             Note(Wave.Sine, listOf(f), 0.5f, 0.28f, startSec = i * 0.28f)
         },
+        Sfx.Lullaby to lullaby(),
+        Sfx.Sparkle to listOf(1568f, 2093f, 2637f).mapIndexed { i, f ->
+            Note(Wave.Sine, listOf(f), 0.06f, 0.35f, startSec = i * 0.07f)
+        },
     )
+
+    /** A music-box lullaby: 16 soft triangle notes over 10 seconds. */
+    private fun lullaby(): List<Note> {
+        val steps = listOf(7, 4, 7, 12, 11, 7, 9, 7, 5, 4, 5, 9, 7, 4, 2, 0)
+        val root = 1046.5f // C6
+        val beat = 10f / steps.size
+        return steps.mapIndexed { i, s -> Note(Wave.Triangle, listOf(root * semitone(s)), beat * 0.9f, 0.3f, startSec = i * beat) }
+    }
 
     /** Eight bars at 110 BPM: an eighth-note lead over a quarter-note bass in C major. */
     private fun danceLoop(lead: Wave, bass: Wave, steps: List<Int>): List<Note> {

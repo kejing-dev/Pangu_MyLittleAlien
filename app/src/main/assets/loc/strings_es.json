@@ -751,6 +751,202 @@
   {
    "k": "welcome.egg.ok",
    "v": "Vale"
+  },
+  {
+   "k": "nature.0",
+   "v": "Constante"
+  },
+  {
+   "k": "nature.1",
+   "v": "Audaz"
+  },
+  {
+   "k": "nature.2",
+   "v": "Ágil"
+  },
+  {
+   "k": "nature.3",
+   "v": "Saltarín"
+  },
+  {
+   "k": "nature.4",
+   "v": "Peleón"
+  },
+  {
+   "k": "nature.5",
+   "v": "Tierno"
+  },
+  {
+   "k": "nature.6",
+   "v": "Tranquilo"
+  },
+  {
+   "k": "nature.7",
+   "v": "Leal"
+  },
+  {
+   "k": "nature.8",
+   "v": "Pegajoso"
+  },
+  {
+   "k": "nature.9",
+   "v": "Mimoso"
+  },
+  {
+   "k": "nature.10",
+   "v": "Soñador"
+  },
+  {
+   "k": "nature.11",
+   "v": "Distante"
+  },
+  {
+   "k": "nature.12",
+   "v": "Peculiar"
+  },
+  {
+   "k": "nature.13",
+   "v": "Curioso"
+  },
+  {
+   "k": "nature.14",
+   "v": "Inventor"
+  },
+  {
+   "k": "nature.15",
+   "v": "Dormilón"
+  },
+  {
+   "k": "nature.16",
+   "v": "Estoico"
+  },
+  {
+   "k": "nature.17",
+   "v": "Plácido"
+  },
+  {
+   "k": "nature.18",
+   "v": "Sereno"
+  },
+  {
+   "k": "nature.19",
+   "v": "Perezoso"
+  },
+  {
+   "k": "nature.20",
+   "v": "Remilgado"
+  },
+  {
+   "k": "nature.21",
+   "v": "Quisquilloso"
+  },
+  {
+   "k": "nature.22",
+   "v": "Ordenado"
+  },
+  {
+   "k": "nature.23",
+   "v": "Melindroso"
+  },
+  {
+   "k": "nature.24",
+   "v": "Sencillo"
+  },
+  {
+   "k": "quirk.0.name",
+   "v": "Hipo chispeante"
+  },
+  {
+   "k": "quirk.0.desc",
+   "v": "de vez en cuando da un saltito con hipo"
+  },
+  {
+   "k": "quirk.1.name",
+   "v": "Madrugador"
+  },
+  {
+   "k": "quirk.1.desc",
+   "v": "se despierta a las 6 cada mañana"
+  },
+  {
+   "k": "quirk.2.name",
+   "v": "Sigue manos"
+  },
+  {
+   "k": "quirk.2.desc",
+   "v": "gira la cabeza hacia tu mano más cercana"
+  },
+  {
+   "k": "quirk.3.name",
+   "v": "Saludo de bienvenida"
+  },
+  {
+   "k": "quirk.3.desc",
+   "v": "te saluda cuando vuelves"
+  },
+  {
+   "k": "quirk.4.name",
+   "v": "Radar de antena"
+  },
+  {
+   "k": "quirk.4.desc",
+   "v": "su antena sigue tu cabeza"
+  },
+  {
+   "k": "quirk.5.name",
+   "v": "Vigía nocturno"
+  },
+  {
+   "k": "quirk.5.desc",
+   "v": "de noche mira al cielo de vez en cuando"
+  },
+  {
+   "k": "quirk.6.name",
+   "v": "Amante de la siesta"
+  },
+  {
+   "k": "quirk.6.desc",
+   "v": "se echa una siesta en cuanto se cansa un poco"
+  },
+  {
+   "k": "quirk.7.name",
+   "v": "Parpadeo lento"
+  },
+  {
+   "k": "quirk.7.desc",
+   "v": "parpadea despacio, como soñando"
+  },
+  {
+   "k": "quirk.8.name",
+   "v": "Se acicala solo"
+  },
+  {
+   "k": "quirk.8.desc",
+   "v": "se mantiene un poco más limpio"
+  },
+  {
+   "k": "quirk.9.name",
+   "v": "Ordenador nato"
+  },
+  {
+   "k": "quirk.9.desc",
+   "v": "recoge, así que las migas se acumulan más despacio"
+  },
+  {
+   "k": "quirk.line",
+   "v": "{quirk}: {desc}. Le encanta: {food}."
+  },
+  {
+   "k": "quirk.lineNone",
+   "v": "{quirk}: {desc}."
+  },
+  {
+   "k": "scr.C25.bAny",
+   "v": "Le gustan todos los bocadillos por igual."
+  },
+  {
+   "k": "debug.complete",
+   "v": "Completar paso (depuración)"
   }
  ]
 }

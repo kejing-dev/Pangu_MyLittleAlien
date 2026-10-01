@@ -3,6 +3,8 @@ package com.technomancer.pangu.logic.save
 import com.technomancer.pangu.logic.creation.PetLook
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenId
+import com.technomancer.pangu.logic.incubation.MicChoice
+import com.technomancer.pangu.logic.personality.Personality
 import kotlinx.serialization.Serializable
 
 /**
@@ -28,6 +30,9 @@ data class SaveData(
     /** The look of the last egg that was set, preselected when starting a new egg. */
     val lastLook: PetLook = PetLook(),
     val egg: EggData = EggData(),
+    /** How the player sings to the egg. */
+    val micChoice: MicChoice = MicChoice.Unknown,
+    val personality: Personality = Personality(),
     val pet: PetData = PetData(),
     val hatchedCount: Int = 0,
     val dormantCount: Int = 0,

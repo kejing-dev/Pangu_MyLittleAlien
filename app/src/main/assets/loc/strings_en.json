@@ -751,6 +751,202 @@
   {
    "k": "welcome.egg.ok",
    "v": "OK"
+  },
+  {
+   "k": "nature.0",
+   "v": "Steady"
+  },
+  {
+   "k": "nature.1",
+   "v": "Bold"
+  },
+  {
+   "k": "nature.2",
+   "v": "Brisk"
+  },
+  {
+   "k": "nature.3",
+   "v": "Bouncy"
+  },
+  {
+   "k": "nature.4",
+   "v": "Scrappy"
+  },
+  {
+   "k": "nature.5",
+   "v": "Gentle"
+  },
+  {
+   "k": "nature.6",
+   "v": "Easygoing"
+  },
+  {
+   "k": "nature.7",
+   "v": "Loyal"
+  },
+  {
+   "k": "nature.8",
+   "v": "Clingy"
+  },
+  {
+   "k": "nature.9",
+   "v": "Snuggly"
+  },
+  {
+   "k": "nature.10",
+   "v": "Dreamy"
+  },
+  {
+   "k": "nature.11",
+   "v": "Aloof"
+  },
+  {
+   "k": "nature.12",
+   "v": "Quirky"
+  },
+  {
+   "k": "nature.13",
+   "v": "Nosy"
+  },
+  {
+   "k": "nature.14",
+   "v": "Tinkery"
+  },
+  {
+   "k": "nature.15",
+   "v": "Sleepy"
+  },
+  {
+   "k": "nature.16",
+   "v": "Stoic"
+  },
+  {
+   "k": "nature.17",
+   "v": "Placid"
+  },
+  {
+   "k": "nature.18",
+   "v": "Mellow"
+  },
+  {
+   "k": "nature.19",
+   "v": "Lazy"
+  },
+  {
+   "k": "nature.20",
+   "v": "Prim"
+  },
+  {
+   "k": "nature.21",
+   "v": "Fussy"
+  },
+  {
+   "k": "nature.22",
+   "v": "Orderly"
+  },
+  {
+   "k": "nature.23",
+   "v": "Finicky"
+  },
+  {
+   "k": "nature.24",
+   "v": "Plain"
+  },
+  {
+   "k": "quirk.0.name",
+   "v": "Sparkle Hiccups"
+  },
+  {
+   "k": "quirk.0.desc",
+   "v": "hops with a little hiccup now and then"
+  },
+  {
+   "k": "quirk.1.name",
+   "v": "Early Riser"
+  },
+  {
+   "k": "quirk.1.desc",
+   "v": "wakes up at 6 every morning"
+  },
+  {
+   "k": "quirk.2.name",
+   "v": "Hand Follower"
+  },
+  {
+   "k": "quirk.2.desc",
+   "v": "its head turns toward your nearest hand"
+  },
+  {
+   "k": "quirk.3.name",
+   "v": "Welcome Wave"
+  },
+  {
+   "k": "quirk.3.desc",
+   "v": "waves hello when you come back"
+  },
+  {
+   "k": "quirk.4.name",
+   "v": "Antenna Radar"
+  },
+  {
+   "k": "quirk.4.desc",
+   "v": "its antenna follows your head"
+  },
+  {
+   "k": "quirk.5.name",
+   "v": "Night Watcher"
+  },
+  {
+   "k": "quirk.5.desc",
+   "v": "gazes at the night sky now and then"
+  },
+  {
+   "k": "quirk.6.name",
+   "v": "Nap Lover"
+  },
+  {
+   "k": "quirk.6.desc",
+   "v": "dozes off whenever it gets a bit tired"
+  },
+  {
+   "k": "quirk.7.name",
+   "v": "Slow Blinker"
+  },
+  {
+   "k": "quirk.7.desc",
+   "v": "blinks slowly and dreamily"
+  },
+  {
+   "k": "quirk.8.name",
+   "v": "Self-Groomer"
+  },
+  {
+   "k": "quirk.8.desc",
+   "v": "keeps itself a little cleaner"
+  },
+  {
+   "k": "quirk.9.name",
+   "v": "Rearranger"
+  },
+  {
+   "k": "quirk.9.desc",
+   "v": "tidies up, so crumbs pile up slower"
+  },
+  {
+   "k": "quirk.line",
+   "v": "{quirk}: {desc}. Loves {food}."
+  },
+  {
+   "k": "quirk.lineNone",
+   "v": "{quirk}: {desc}."
+  },
+  {
+   "k": "scr.C25.bAny",
+   "v": "It likes every snack the same."
+  },
+  {
+   "k": "debug.complete",
+   "v": "Complete step (debug)"
   }
  ]
 }

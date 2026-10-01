@@ -1,5 +1,6 @@
 package com.technomancer.pangu.logic.incubation
 
+import com.technomancer.pangu.logic.art.EggMesh
 import com.technomancer.pangu.logic.audio.Sfx
 import com.technomancer.pangu.logic.config.IncubationConfig
 import com.technomancer.pangu.logic.gestures.HoldDetector
@@ -18,6 +19,9 @@ interface EggEvents {
 
     /** A 30 s hold finished; [result] says whether it counted. */
     fun warmCompleted(result: CapResult)
+
+    /** Sing, Listen or Polish reached its goal; the caller counts it. */
+    fun ritualDone(action: EggAction)
     fun conditionChanged(condition: EggCondition)
     fun sealFinished()
     fun hatchFinished()
@@ -41,6 +45,10 @@ class EggWorld(
     val sim = IncubationSim(config)
     val ledger = ImprintLedger(config)
     private val hold = HoldDetector(config.handWarmCompleteSec)
+    val rituals = Rituals(config, events)
+
+    /** The player's head, hands and voice this frame, filled by the caller before [update]. */
+    val senses = EggSenses()
 
     var condition: EggCondition = EggCondition.Cozy
         private set
@@ -99,6 +107,7 @@ class EggWorld(
         wasTucked = false
         hatchSec = -1f
         hold.reset()
+        rituals.stop()
     }
 
     /** Syncs derived state after loading or catching up, without announcing anything. */
@@ -114,6 +123,7 @@ class EggWorld(
     }
 
     fun startHatch() {
+        rituals.stop()
         hatchSec = 0f
     }
 
@@ -132,6 +142,7 @@ class EggWorld(
 
         sim.step(egg, dt / 3600f, nowMs)
         if (eggHeld) updateHold(dt, nowMs) else hold.reset()
+        rituals.update(dt, senses, eggPosition * displayScale + Vec3(0f, EggMesh.HEIGHT / 2f, 0f))
         updateEggFloat(dt)
         updateBlanket(dt, nowMs)
         updateWobble(dt)

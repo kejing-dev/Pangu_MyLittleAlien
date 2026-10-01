@@ -12,6 +12,10 @@ class InputSnapshot {
     var headPosition: Vec3 = Vec3.ZERO
     var headRotation: Quat = Quat.IDENTITY
 
+    /** Microphone level 0..1 while the app is listening for singing; 0 otherwise. */
+    @Volatile
+    var micRms: Float = 0f
+
     /** Left hand tip, right hand tip, left controller tip, right controller tip. */
     val pokes: Array<PokePoint> = arrayOf(
         PokePoint(Modality.Hand, Side.Left),

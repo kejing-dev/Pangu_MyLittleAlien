@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Singing to the egg reads the microphone level live; nothing is recorded or sent. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:name=".platform.SpatialApplication"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -18,6 +18,9 @@ class PetActions(private val config: PetConfig) {
     var activity = PetActivity.Idle
         private set
 
+    /** Personality multipliers on each action's gain. */
+    var modifiers: NeedModifiers = NeedModifiers.IDENTITY
+
     private var eatEndMs = 0L
     private var pendingHunger = 0f
     private var lastEatEndMs = Long.MIN_VALUE / 2
@@ -101,7 +104,7 @@ class PetActions(private val config: PetConfig) {
             strokeMinuteStartMs = nowMs
             strokeGainedThisMinute = 0f
         }
-        val gain = minOf(config.strokeSocialPerSec * seconds, config.strokeCapPerMin - strokeGainedThisMinute).coerceAtLeast(0f)
+        val gain = minOf(config.strokeSocialPerSec * modifiers.gain(PetAction.Cuddle) * seconds, config.strokeCapPerMin - strokeGainedThisMinute).coerceAtLeast(0f)
         strokeGainedThisMinute += gain
         needs.add(Need.Social, gain)
         return gain
@@ -111,13 +114,13 @@ class PetActions(private val config: PetConfig) {
     fun boop(needs: Needs, nowMs: Long): Boolean {
         if (nowMs - lastBoopMs < (config.boopCooldownSec * 1000).toLong()) return false
         lastBoopMs = nowMs
-        needs.add(Need.Social, config.boopSocial)
+        needs.add(Need.Social, config.boopSocial * modifiers.gain(PetAction.Cuddle))
         return true
     }
 
     /** One fetch during play: Fun, Social and a little Energy. */
     fun fetch(needs: Needs) {
-        needs.add(Need.Fun, config.fetchFun * playEfficiency)
+        needs.add(Need.Fun, config.fetchFun * playEfficiency * modifiers.gain(PetAction.Play))
         needs.add(Need.Social, config.fetchSocial * playEfficiency)
         needs.add(Need.Energy, -config.fetchEnergyCost)
     }
@@ -135,7 +138,7 @@ class PetActions(private val config: PetConfig) {
                 return true
             }
             PetActivity.Napping -> {
-                needs.add(Need.Energy, config.napEnergyPerMin * napEfficiency * dtSec / 60f)
+                needs.add(Need.Energy, config.napEnergyPerMin * napEfficiency * modifiers.gain(PetAction.Sleep) * dtSec / 60f)
                 if (nowMs >= napEndMs || needs[Need.Energy] >= 100f) {
                     wake()
                     return true
@@ -145,7 +148,7 @@ class PetActions(private val config: PetConfig) {
                 val rate = if (scrubbing) 2f else 1f
                 val step = minOf(dtSec * rate, config.bathSec - timedSec)
                 timedSec += step
-                needs.add(Need.Hygiene, config.bathGain * step / config.bathSec)
+                needs.add(Need.Hygiene, config.bathGain * modifiers.gain(PetAction.Clean) * step / config.bathSec)
                 if (timedSec >= config.bathSec) {
                     activity = PetActivity.Idle
                     return true
@@ -155,7 +158,7 @@ class PetActions(private val config: PetConfig) {
                 val step = minOf(dtSec, config.danceSec - timedSec)
                 timedSec += step
                 val f = step / config.danceSec
-                needs.add(Need.Fun, config.danceFun * f)
+                needs.add(Need.Fun, config.danceFun * modifiers.gain(PetAction.Dance) * f)
                 needs.add(Need.Energy, -config.danceEnergyCost * f)
                 needs.add(Need.Hygiene, -config.danceHygieneCost * f)
                 if (timedSec >= config.danceSec) {
@@ -182,10 +185,10 @@ class PetActions(private val config: PetConfig) {
         if (timedSec / total > 0.5f) {
             val rest = total - timedSec
             if (activity == PetActivity.Cleaning) {
-                needs.add(Need.Hygiene, config.bathGain * rest / total)
+                needs.add(Need.Hygiene, config.bathGain * modifiers.gain(PetAction.Clean) * rest / total)
             } else {
                 val f = rest / total
-                needs.add(Need.Fun, config.danceFun * f)
+                needs.add(Need.Fun, config.danceFun * modifiers.gain(PetAction.Dance) * f)
                 needs.add(Need.Energy, -config.danceEnergyCost * f)
                 needs.add(Need.Hygiene, -config.danceHygieneCost * f)
             }

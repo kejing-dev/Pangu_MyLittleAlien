@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,6 +55,10 @@ class PanelState(
     val studio: StudioUi?,
     val egg: EggUi?,
     val counters: Triple<Int, Int, Int>,
+    /** Live voice level for the C12 meter. */
+    val micLevel: Float = 0f,
+    /** Show the debug "Complete step" button on ritual panels. */
+    val assist: Boolean = false,
 )
 
 /** What the panel's buttons and pickers report. */
@@ -63,6 +68,8 @@ class PanelActions(
     val onRecenter: () -> Unit,
     val onLook: (Int) -> Unit,
     val onWheel: (Int) -> Unit,
+    val onInfo: () -> Unit = {},
+    val onAssist: () -> Unit = {},
 )
 
 /**
@@ -97,9 +104,9 @@ fun InfoPanel(
     ) {
         if (content != null) {
             if (content.kind == PanelKind.Hab) HabitatIllustration(scale)
-            if (content.kind == PanelKind.Needs && pet != null) NeedsBlock(pet, loc, scale)
+            if (content.kind == PanelKind.Needs && pet != null) NeedsBlock(pet, loc, scale, actions.onInfo)
             content.titleKey?.let {
-                Text(text = titleText(content, it, name, egg, loc), color = PanelColors.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
+                Text(text = titleText(content, it, name, egg, pet, loc), color = PanelColors.ink, fontSize = scale.sp(26f), fontWeight = FontWeight.SemiBold)
             }
             bodyText(content, pet, egg, name, loc)?.let {
                 Text(text = it, color = PanelColors.body, fontSize = scale.sp(18f))
@@ -120,9 +127,21 @@ fun InfoPanel(
                     ScreenId.C09 -> ProgressBlock(egg.holdSec, egg.holdTotal, loc.format("fmt.sec", "a" to egg.holdSec, "b" to egg.holdTotal), scale)
                     ScreenId.C20 -> ProgressBlock(egg.taps, egg.tapsTotal, loc.format("fmt.taps", "a" to egg.taps, "b" to egg.tapsTotal), scale)
                     ScreenId.C21 -> ProgressBlock(egg.hatchSec, egg.hatchTotal, loc.format("fmt.sec", "a" to egg.hatchSec, "b" to egg.hatchTotal), scale)
+                    ScreenId.C12 -> {
+                        ProgressBlock(egg.singSec, egg.singTotal, loc.format("fmt.sec", "a" to egg.singSec, "b" to egg.singTotal), scale)
+                        VoiceMeter(state.micLevel, scale)
+                    }
+                    ScreenId.C13 -> ProgressBlock(egg.lullabySec, egg.lullabyTotal, loc.format("fmt.sec", "a" to egg.lullabySec, "b" to egg.lullabyTotal), scale)
+                    ScreenId.C14 -> {
+                        ProgressBlock(egg.listenSec, egg.listenTotal, loc.format("fmt.sec", "a" to egg.listenSec, "b" to egg.listenTotal), scale)
+                        PulseLine(egg.listening, scale)
+                    }
+                    ScreenId.C15 -> ProgressBlock(egg.circles, egg.circlesTotal, loc.format("fmt.circles", "a" to egg.circles, "b" to egg.circlesTotal), scale)
                     else -> Unit
                 }
+                if (state.assist && content.id in ASSISTED) PillButton(loc.get("debug.complete"), scale, primary = false, onClick = actions.onAssist)
             }
+            if (content.kind == PanelKind.Pers) pet?.personality?.let { PersonalityBlock(it, loc, scale) }
             if (content.id == ScreenId.C07 && egg != null) KeyValueRows(eggRows(egg, loc), scale)
             if (content.id == ScreenId.C35) {
                 if (egg?.awayBands != null) KeyValueRows(eggAwayRows(egg, loc), scale) else if (pet != null) AwayRows(pet, loc, scale)
@@ -130,6 +149,9 @@ fun InfoPanel(
             val primaryKey = if (content.id == ScreenId.C35 && egg?.awayBands != null) "welcome.egg.ok" else content.primaryKey
             primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = actions.onPrimary) }
             content.secondaryKey?.let { PillButton(loc.get(it), scale, primary = false, onClick = actions.onSecondary) }
+            if (content.id == ScreenId.C22) pet?.personality?.let {
+                Text(text = loc.format("fmt.eggCode", "code" to it.eggCode), color = PanelColors.muted, fontSize = scale.sp(14f))
+            }
             if (content.id == ScreenId.C33 || content.id == ScreenId.C19) {
                 val (h, r, w) = state.counters
                 Text(text = loc.format("fmt.counters", "h" to h, "r" to r, "w" to w), color = PanelColors.muted, fontSize = scale.sp(15f))
@@ -139,12 +161,16 @@ fun InfoPanel(
     }
 }
 
-/** Title text; C07 counts the egg's day and C16 names the capped action. */
-private fun titleText(content: ScreenContent, key: String, name: String, egg: EggUi?, loc: LocService): String = when (content.id) {
+/** Title text; C07 counts the egg's day, C16 names the capped action and C22 the nature. */
+private fun titleText(content: ScreenContent, key: String, name: String, egg: EggUi?, pet: PetUi?, loc: LocService): String = when (content.id) {
     ScreenId.C07 -> loc.format(key, "name" to name, "day" to (egg?.day ?: 1))
     ScreenId.C16 -> loc.get(key).replace("<action>", loc.get("ui.egg6.${egg?.cappedAction?.ordinal ?: 0}"))
+    ScreenId.C22 -> loc.format(key, "name" to name).replace("<nature>", loc.get("nature.${pet?.personality?.natureIndex ?: 6}"))
     else -> loc.format(key, "name" to name)
 }
+
+/** Ritual panels that get the debug "Complete step" button in the Emulator. */
+private val ASSISTED = setOf(ScreenId.C09, ScreenId.C12, ScreenId.C13, ScreenId.C14, ScreenId.C15)
 
 /** C07: warmth band, rituals today and the heat lamp. */
 private fun eggRows(egg: EggUi, loc: LocService): List<Pair<String, String>> = listOf(
@@ -176,7 +202,10 @@ private fun bodyText(content: ScreenContent, pet: PetUi?, egg: EggUi?, name: Str
             loc.format("suggest.one", "need" to need, "a" to actions.firstOrNull().orEmpty())
         }
     }
-    content.id == ScreenId.C25 -> loc.format("scr.C25.b", "food" to loc.get("food.2"))
+    content.id == ScreenId.C25 -> {
+        val liked = pet?.likedFood ?: -1
+        if (liked >= 0) loc.format("scr.C25.b", "food" to loc.get("food.$liked")) else loc.get("scr.C25.bAny")
+    }
     content.id == ScreenId.C35 -> {
         val minutes = if (egg?.awayBands != null) egg.awayMinutes else pet?.awayMinutes ?: 0L
         if (minutes < 60) loc.format("scr.C35.bMin", "n" to minutes) else loc.format("scr.C35.b", "n" to minutes / 60)
@@ -198,10 +227,10 @@ private fun AwayRows(pet: PetUi, loc: LocService, scale: UiScale) {
     }
 }
 
-/** C23: name, mood chip and the six need bars. */
+/** C23: name, mood chip, a "?" that reopens the personality card, and the six need bars. */
 @Composable
-private fun NeedsBlock(pet: PetUi, loc: LocService, scale: UiScale) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun NeedsBlock(pet: PetUi, loc: LocService, scale: UiScale, onInfo: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(text = pet.name, color = PanelColors.ink, fontSize = scale.sp(29f), fontWeight = FontWeight.SemiBold)
         Box(
             modifier = Modifier
@@ -210,6 +239,17 @@ private fun NeedsBlock(pet: PetUi, loc: LocService, scale: UiScale) {
                 .padding(horizontal = scale.px(10), vertical = scale.px(4)),
         ) {
             Text(text = loc.get("mood.${pet.mood.name.lowercase()}"), color = PanelColors.ink, fontSize = scale.sp(17f), fontWeight = FontWeight.Bold)
+        }
+        Box(modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(scale.px(40))
+                .background(PanelColors.paper, CircleShape)
+                .border(scale.px(1.5f), PanelColors.ink, CircleShape)
+                .clickable(onClick = onInfo),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "?", color = PanelColors.ink, fontSize = scale.sp(20f), fontWeight = FontWeight.Bold)
         }
     }
     Need.entries.forEachIndexed { i, need ->

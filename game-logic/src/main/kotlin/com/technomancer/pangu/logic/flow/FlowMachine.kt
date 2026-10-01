@@ -63,10 +63,10 @@ class FlowMachine(val screens: ScreenMachine, initialLook: PetLook = PetLook()) 
         screens.show(ScreenId.C21)
     }
 
-    /** The hatch sequence finished: the pet is out. */
+    /** The hatch sequence finished: the pet is out and its personality card shows. */
     fun hatched() {
         flow = FlowState.Pet
-        screens.show(ScreenId.C23)
+        screens.show(ScreenId.C22)
     }
 
     fun goDormant() {

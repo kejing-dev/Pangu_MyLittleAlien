@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.res.AssetManager
 import android.util.Log
+import com.technomancer.pangu.audio.MicService
 import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.config.ConfigLoader
 import com.technomancer.pangu.logic.PanguLogic
@@ -15,6 +16,7 @@ import com.technomancer.pangu.logic.config.SimConfig
 import com.technomancer.pangu.logic.config.UiConfig
 import com.technomancer.pangu.logic.config.IncubationConfig
 import com.technomancer.pangu.logic.config.LookConfig
+import com.technomancer.pangu.logic.config.PersonalityConfig
 import com.technomancer.pangu.logic.creation.KeeperIds
 import com.technomancer.pangu.logic.flow.FlowMachine
 import com.technomancer.pangu.logic.flow.FlowState
@@ -54,6 +56,7 @@ object AppServices {
         val simConfig = configs.load("sim_config", SimConfig())
         val lookConfig = configs.load("look_config", LookConfig())
         val incubationConfig = configs.load("incubation_config", IncubationConfig())
+        val personalityConfig = configs.load("personality_config", PersonalityConfig())
         // Debug overrides only apply to debug builds.
         val debugConfig = if (debuggable) configs.load("debug_config", DebugConfig()) else DebugConfig()
         val clock: IClock = SystemClock()
@@ -74,6 +77,7 @@ object AppServices {
             random = XorShift32.fromLong(clock.nowUtcMillis()),
             lookConfig = lookConfig,
             incubationConfig = incubationConfig,
+            personalityConfig = personalityConfig,
             skipToPet = debugConfig.forceFlow == "Pet",
         )
         logic.keeperIds = KeeperIds.ensure(KeeperIds(save.keeperId, save.secretId).takeIf { save.keeperId >= 0 }, clock)
@@ -83,6 +87,8 @@ object AppServices {
         logic.flow.flow = flow
         logic.flow.look = save.look
         logic.flow.lastLook = save.lastLook
+        logic.micChoice = save.micChoice
+        logic.debugAssist = debuggable && isEmulator()
         val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
         when (flow) {
             FlowState.Hatching -> {
@@ -121,6 +127,7 @@ object AppServices {
         ServiceRegistry.register(ui)
         ServiceRegistry.register(haptics)
         ServiceRegistry.register(sfx)
+        ServiceRegistry.register(MicService(app))
         ServiceRegistry.register(session)
         ServiceRegistry.register(SceneHandles())
     }
@@ -135,6 +142,7 @@ object AppServices {
         }
         val pet = logic.pet
         pet.hatchMs = data.hatchUtcMs
+        pet.applyPersonality(save.personality)
         data.needs.forEachIndexed { i, v -> if (i < pet.needs.values.size) pet.needs.values[i] = v }
         for (i in 0 until data.crumbPositions.size / 2) {
             pet.crumbs.positions += Vec3(data.crumbPositions[i * 2], 0f, data.crumbPositions[i * 2 + 1])
@@ -146,7 +154,7 @@ object AppServices {
         pet.actions.restoreNap(data.napEndUtcMs, from)
         val before = pet.needs.values.copyOf()
         val crumbsBefore = pet.needs.crumbs
-        val steps = catchUp.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config))
+        val steps = catchUp.pet(pet.needs, pet.actions, from, now, pet.crumbs, pet.distress, MoodCalculator(pet.config), pet.modifiers, pet.sleepEndHour)
         pet.syncStage()
         logic.nowMs = now
         logic.announceState()
@@ -169,6 +177,13 @@ object AppServices {
         logic.nowMs = now
         Log.i("Pangu", "Caught up the egg to ${logic.egg.condition}, warmth ${logic.egg.egg.warmth}")
     }
+
+    /**
+     * True in the PICO Emulator. The SDK's SpatialBuild only reports isSpatialPlatform(), so this
+     * reads Android's build properties (the Emulator runs on "ranchu" hardware).
+     */
+    private fun isEmulator(): Boolean =
+        android.os.Build.HARDWARE == "ranchu" || android.os.Build.FINGERPRINT.contains("emulator")
 
     private fun loadTables(assets: AssetManager): Map<Language, LocTable> =
         Language.entries.associateWith { lang ->

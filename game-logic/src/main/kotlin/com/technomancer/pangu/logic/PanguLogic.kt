@@ -3,6 +3,9 @@ package com.technomancer.pangu.logic
 import com.technomancer.pangu.logic.audio.Sfx
 import com.technomancer.pangu.logic.config.IncubationConfig
 import com.technomancer.pangu.logic.config.LookConfig
+import com.technomancer.pangu.logic.config.PersonalityConfig
+import com.technomancer.pangu.logic.incubation.MicChoice
+import com.technomancer.pangu.logic.personality.PersonalityCalculator
 import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.config.UiConfig
 import com.technomancer.pangu.logic.creation.KeeperIds
@@ -34,7 +37,6 @@ import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.pet.AwaySummary
 import com.technomancer.pangu.logic.pet.Distress
-import com.technomancer.pangu.logic.pet.NeedsSim
 import com.technomancer.pangu.logic.pet.PetAction
 import com.technomancer.pangu.logic.pet.PetActivity
 import com.technomancer.pangu.logic.pet.PetEvents
@@ -62,6 +64,7 @@ class PanguLogic(
     private val random: IRandom = XorShift32(1u),
     lookConfig: LookConfig = LookConfig(),
     incubationConfig: IncubationConfig = IncubationConfig(),
+    private val personalityConfig: PersonalityConfig = PersonalityConfig(),
     /** Debug: placing the pad on first launch skips creation and hatches the default pet. */
     private val skipToPet: Boolean = false,
 ) : PetEvents, EggEvents {
@@ -103,10 +106,21 @@ class PanguLogic(
     var toastSerial: Int = 0
         private set
 
-    val pet = PetWorld(petConfig, random, PAD_RADIUS, this, placement.habitatScale)
+    val pet = PetWorld(petConfig, random, PAD_RADIUS, this, placement.habitatScale, personalityConfig)
     val egg = EggWorld(incubationConfig, this, placement.habitatScale)
-    private val needsSim = NeedsSim(petConfig)
+    private val calculator = PersonalityCalculator(personalityConfig)
     private var pieIdleSec = 0f
+
+    /** How the player sings to the egg; asked the first time Sing is chosen. */
+    var micChoice: MicChoice = MicChoice.Unknown
+
+    /** Changes each time the app should ask for the microphone permission. */
+    var micPermissionSerial: Int = 0
+        private set
+
+    /** True while the app should be reading the microphone (C12). */
+    val micWanted: Boolean
+        get() = screens.current == ScreenId.C12 && egg.rituals.active == EggAction.Sing && egg.rituals.singPath == MicChoice.Voice
 
     /** The pet's name, built from the look's syllables. */
     val petName: String get() = wheels.name(flow.look)
@@ -168,6 +182,10 @@ class PanguLogic(
                 egg.releaseEgg()
                 screens.show(eggHomeScreen())
             }
+            if (egg.rituals.active != null) {
+                egg.rituals.stop()
+                screens.show(eggHomeScreen())
+            }
             screens.pause()
         } else {
             screens.resume()
@@ -192,6 +210,7 @@ class PanguLogic(
         welcome = summary
         eggWelcome = null
         screens.show(ScreenId.C35)
+        pet.welcomeBack()
     }
 
     /**
@@ -259,6 +278,7 @@ class PanguLogic(
     private fun updateEgg(dt: Float, input: InputSnapshot) {
         // The preview keeps breathing while it shrinks away during the seal.
         if (egg.sealSec >= 0f) preview.update(dt)
+        fillSenses(input)
         val before = egg.hatchSec
         egg.update(dt, nowMs, clock.localDay(nowMs))
         val after = egg.hatchSec
@@ -272,6 +292,17 @@ class PanguLogic(
         }
     }
 
+    /** Head, fingertips and voice in metres in the pad's frame, for the rituals. */
+    private fun fillSenses(input: InputSnapshot) {
+        val s = egg.senses
+        val scale = placement.habitatScale
+        s.head = if (input.headValid) toPadLocal(input.headPosition) * scale else null
+        s.headForward = if (input.headValid) toPadLocalDirection(input.headRotation.rotate(Vec3.FORWARD)).normalized() else null
+        s.pokes.clear()
+        for (p in input.pokes) if (p.valid) s.pokes += toPadLocal(p.position) * scale
+        s.micRms = input.micRms
+    }
+
     private fun updatePet(dt: Float, input: InputSnapshot) {
         if (pet.hatchMs == 0L) pet.hatchMs = nowMs
         val head = if (input.headValid) toPadLocal(input.headPosition) else null
@@ -282,7 +313,7 @@ class PanguLogic(
             if (p.valid) pokeBuffer += toPadLocal(p.position)
             motionBuffer += if (p.valid) p.position else null
         }
-        pet.update(dt, nowMs, needsSim.isNight(clock.localHour(nowMs)), head, pokeBuffer, motionBuffer)
+        pet.update(dt, nowMs, pet.isNight(clock.localHour(nowMs)), head, pokeBuffer, motionBuffer)
         if (pet.stage() == Distress.WentHome && pet.body.departed && flow.flow != FlowState.WentHome) {
             wentHomeCount++
             saveRequested = true
@@ -319,6 +350,11 @@ class PanguLogic(
                 choose(PetAction.entries.getOrNull(e.target))
             }
             InteractionType.UiLook -> pickLook(LookPick.row(e.target), LookPick.index(e.target))
+            InteractionType.UiMic -> onMicAnswer(e.target == 1)
+            InteractionType.UiAssist -> if (debugAssist) {
+                if (egg.rituals.active != null) egg.rituals.completeNow() else if (screens.current == ScreenId.C09) warmCompleted(egg.ledger.complete(EggAction.Warm, nowMs, clock.localDay(nowMs)))
+            }
+            InteractionType.UiInfo -> if (isPetFlow && screens.current == ScreenId.C23) screens.show(ScreenId.C22)
             InteractionType.UiWheel -> if (screens.current == ScreenId.C04) {
                 flow.look = wheels.cycle(flow.look, e.target.coerceIn(0, 2))
                 haptic = HapticCue.UiPress
@@ -338,6 +374,10 @@ class PanguLogic(
                 if (screens.current != ScreenId.C34) screens.show(ScreenId.C09)
             }
             target == TargetId.BLANKET && flow.flow == FlowState.Incubation -> if (egg.grabBlanket(nowMs)) haptic = HapticCue.Grab
+            target == TargetId.CRANK -> {
+                egg.rituals.grabCrank()
+                haptic = HapticCue.Grab
+            }
             target == TargetId.PET_BODY && isStudio -> Unit
             !isPetFlow -> Unit
             TargetId.foodIndex(target) >= 0 -> {
@@ -361,6 +401,7 @@ class PanguLogic(
             }
             e.target == TargetId.EGG -> egg.moveEgg(toPadLocalDirection(e.delta))
             e.target == TargetId.BLANKET -> egg.moveBlanket(toPadLocalDirection(e.delta))
+            e.target == TargetId.CRANK -> egg.rituals.moveCrank(toPadLocalDirection(e.delta) * placement.habitatScale)
             e.target == TargetId.PET_BODY && isStudio -> preview.spin(toPadLocalDirection(e.delta).x * placement.habitatScale, dt)
             !isPetFlow -> Unit
             TargetId.foodIndex(e.target) >= 0 -> pet.moveFood(TargetId.foodIndex(e.target), toPadLocalDirection(e.delta))
@@ -385,6 +426,7 @@ class PanguLogic(
                 if (screens.current == ScreenId.C09) screens.show(eggHomeScreen())
             }
             e.target == TargetId.BLANKET && egg.blanketHeld -> if (egg.releaseBlanket(nowMs, clock.localDay(nowMs))) saveRequested = true
+            e.target == TargetId.CRANK -> egg.rituals.releaseCrank()
             e.target == TargetId.PET_BODY && isStudio -> preview.endSpin()
             !isPetFlow -> Unit
             TargetId.foodIndex(e.target) >= 0 -> pet.releaseFood(TargetId.foodIndex(e.target))
@@ -401,6 +443,8 @@ class PanguLogic(
             ScreenId.C04 -> flow.toConfirm()
             ScreenId.C05 -> setEgg()
             ScreenId.C10, ScreenId.C16 -> screens.show(eggHomeScreen())
+            ScreenId.C11 -> micPermissionSerial++
+            ScreenId.C22 -> screens.show(ScreenId.C23)
             ScreenId.C17, ScreenId.C18 -> {
                 egg.lightLamp(nowMs)
                 showToast("toast.lamp")
@@ -448,6 +492,7 @@ class PanguLogic(
             }
             ScreenId.C04 -> flow.backToLook()
             ScreenId.C05 -> flow.backToName()
+            ScreenId.C11 -> onMicAnswer(false)
             else -> Unit
         }
     }
@@ -487,7 +532,10 @@ class PanguLogic(
                     flow.flow == FlowState.Incubation -> when (screens.current) {
                         ScreenId.C07, ScreenId.C17, ScreenId.C18, ScreenId.C20 -> openEggPie()
                         ScreenId.C06, ScreenId.C09 -> Unit
-                        else -> screens.show(eggHomeScreen())
+                        else -> {
+                            egg.rituals.stop()
+                            screens.show(eggHomeScreen())
+                        }
                     }
                     else -> showToast("toast.orb")
                 }
@@ -528,6 +576,7 @@ class PanguLogic(
         flow.startHatch()
         egg.startHatch()
         pet.hatchNew(nowMs)
+        pet.applyPersonality(calculator.compute(egg.egg.sparkValue, keeperIds, egg.ledger.imprint))
         pet.body.holdStill = true
         saveRequested = true
     }
@@ -586,10 +635,53 @@ class PanguLogic(
                 showToast(if (egg.isTucked(nowMs)) "toast.blanketOn" else "toast.blanket")
                 screens.show(eggHomeScreen())
             }
-            EggAction.Sing, EggAction.Listen, EggAction.Polish -> showToast("toast.soon")
+            EggAction.Sing, EggAction.Listen, EggAction.Polish -> startRitual(action)
             null -> Unit
         }
     }
+
+    /** Starts Sing, Listen or Polish, unless today's count is used up (C16). Sing asks how to sing the first time. */
+    private fun startRitual(action: EggAction) {
+        if (egg.ledger.capped(action, clock.localDay(nowMs))) {
+            cappedAction = action
+            screens.show(ScreenId.C16)
+            return
+        }
+        when (action) {
+            EggAction.Sing -> when (micChoice) {
+                MicChoice.Unknown -> screens.show(ScreenId.C11)
+                MicChoice.Voice -> {
+                    egg.rituals.start(EggAction.Sing, MicChoice.Voice)
+                    screens.show(ScreenId.C12)
+                }
+                MicChoice.MusicBox -> {
+                    egg.rituals.start(EggAction.Sing, MicChoice.MusicBox)
+                    screens.show(ScreenId.C13)
+                }
+            }
+            EggAction.Listen -> {
+                egg.rituals.start(EggAction.Listen)
+                screens.show(ScreenId.C14)
+            }
+            else -> {
+                egg.rituals.start(EggAction.Polish)
+                screens.show(ScreenId.C15)
+            }
+        }
+    }
+
+    /** The microphone question was answered: sing with the voice, or wind the music box instead. */
+    private fun onMicAnswer(granted: Boolean) {
+        micChoice = if (granted) MicChoice.Voice else MicChoice.MusicBox
+        saveRequested = true
+        if (flow.flow == FlowState.Incubation && (screens.current == ScreenId.C11 || screens.current == ScreenId.C12)) {
+            egg.rituals.start(EggAction.Sing, micChoice)
+            screens.show(if (granted) ScreenId.C12 else ScreenId.C13)
+        }
+    }
+
+    /** Debug builds running in the Emulator show "Complete step" on ritual panels. */
+    var debugAssist = false
 
     /** The egg's resting screen for its condition. */
     fun eggHomeScreen(): ScreenId = when (egg.condition) {
@@ -673,6 +765,25 @@ class PanguLogic(
                 screens.show(ScreenId.C16)
             }
             CapResult.Cooldown -> showToast("toast.cooldown")
+        }
+    }
+
+    override fun ritualDone(action: EggAction) {
+        when (val result = egg.ledger.complete(action, nowMs, clock.localDay(nowMs))) {
+            CapResult.Counted -> {
+                sounds += Sfx.Sparkle
+                haptic = HapticCue.Completion
+                saveRequested = true
+                screens.show(eggHomeScreen())
+            }
+            CapResult.DailyCap -> {
+                cappedAction = action
+                screens.show(ScreenId.C16)
+            }
+            CapResult.Cooldown -> {
+                showToast("toast.cooldown")
+                screens.show(eggHomeScreen())
+            }
         }
     }
 
