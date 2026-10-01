@@ -32,6 +32,6 @@ fun HintChip(glyph: String, text: String, scale: UiScale) {
 
 /** Glyph per hint, in the order of the logic's Hint values. */
 val HINT_GLYPHS = mapOf(
-    "crank" to "↻", "lean" to "◎", "poke" to "☝", "grab" to "✊", "gaze" to "◉",
+    "crank" to "↻", "lean" to "◎", "poke" to "☝", "grab" to "☝", "gaze" to "◉",
     "voice" to "♪", "rub" to "∿", "move" to "♫", "none" to "○",
 )

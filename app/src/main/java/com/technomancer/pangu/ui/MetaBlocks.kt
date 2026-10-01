@@ -53,6 +53,7 @@ fun LangBlock(selected: Language, loc: LocService, scale: UiScale, onPick: (Lang
         ) {
             Text(
                 text = loc.get("ui.lang.${lang.code}"),
+                fontFamily = fonts.nativeName(lang),
                 color = if (on) PanguTokens.paper else PanguTokens.ink,
                 fontSize = scale.sp(18f),
                 fontWeight = FontWeight.SemiBold,
@@ -94,7 +95,7 @@ fun SettingsBlock(settings: SettingsUi, loc: LocService, scale: UiScale, actions
         SegmentControl {
             Language.entries.forEach { lang ->
                 SegmentItem(
-                    title = { Text(loc.get("ui.langLabel.${lang.code}")) },
+                    title = { Text(loc.get("ui.langLabel.${lang.code}"), fontFamily = LocalPanguFonts.current.nativeName(lang)) },
                     colors = SegmentControlDefaults.colors(PanguTokens.paper, PanguTokens.ink, PanguTokens.ink, PanguTokens.paper),
                     selected = lang == settings.language,
                     onClick = { actions.onLanguage(lang) },

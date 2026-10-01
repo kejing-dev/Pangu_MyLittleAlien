@@ -51,7 +51,7 @@ object TtfCmap {
 
 class FontCoverageTest {
     private val fontDir = File("../app/src/main/res/font")
-    private val glyphs = "☼◡≋♪◎◇●☾✧♫◉♡∿✊☝○↻▲▼★♥✿ϟ≈❚✦"
+    private val glyphs = "☼◡≋♪◎◇●☾✧♫◉♡∿☝○↻▲▼★♥✿ϟ≈❚✦⚙❄◌"
 
     private fun covered(vararg names: String): Set<Int> =
         names.flatMap { TtfCmap.codePoints(File(fontDir, it).readBytes()) }.toSet()
@@ -61,14 +61,19 @@ class FontCoverageTest {
         val latin = listOf("noto_sans_regular.ttf", "noto_sans_symbols2_regular.ttf")
         val sc = listOf("noto_sans_sc_regular.otf", "noto_sans_symbols2_regular.ttf")
         assumeTrue((latin + sc).all { File(fontDir, it).exists() }, "Noto fonts not copied into res/font yet")
-        val symbols = covered("noto_sans_symbols2_regular.ttf", "noto_sans_regular.ttf")
+        // The app chains these four fonts for UI symbols.
+        val symbols = covered("noto_sans_symbols2_regular.ttf", "noto_sans_symbols_regular.ttf", "noto_sans_math_regular.ttf", "noto_sans_regular.ttf")
         val missingGlyphs = glyphs.codePoints().toArray().filter { it !in symbols }
         assertTrue(missingGlyphs.isEmpty(), "glyphs missing: ${missingGlyphs.joinToString { Character.toChars(it).concatToString() }}")
         for (lang in Language.entries) {
             val table = LocTable.parse(File("../app/src/main/assets/loc/strings_${lang.code}.json").readText(Charsets.UTF_8))
             val fonts = covered(*(if (lang == Language.Zh) sc else latin).toTypedArray())
-            val missing = table.keys.flatMap { k -> table[k]!!.codePoints().toArray().toList() }
-                .filter { it > 0x20 && it !in fonts }.toSet()
+            // Each language's own name is drawn in that language's font (the app does the same).
+            val scFonts = covered(*sc.toTypedArray())
+            val missing = table.keys.flatMap { k ->
+                val own = if (k == "ui.lang.zh" || k == "ui.langLabel.zh") scFonts else fonts
+                table[k]!!.codePoints().toArray().filter { it > 0x20 && it !in own }
+            }.toSet()
             assertTrue(missing.isEmpty(), "${lang.code} missing: ${missing.joinToString("") { Character.toChars(it).concatToString() }}")
         }
     }

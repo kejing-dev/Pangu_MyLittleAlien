@@ -100,7 +100,7 @@ fun HandleLabel(visible: Boolean, loc: LocService, scale: UiScale) {
         ) {
             Text(
                 text = buildAnnotatedString {
-                    withStyle(SpanStyle(fontFamily = LocalPanguFonts.current.glyph)) { append("✊ ") }
+                    withStyle(SpanStyle(fontFamily = LocalPanguFonts.current.glyph)) { append("☝ ") }
                     append(loc.get("hint.handle"))
                 },
                 color = PanguTokens.ink,
