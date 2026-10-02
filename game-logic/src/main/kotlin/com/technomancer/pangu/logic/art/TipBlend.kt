@@ -9,7 +9,8 @@ import kotlin.math.sqrt
  * into it and the new one grows out of it, with no swap visible in between.
  *
  * Directions are taken inside the mesh's own bounding box, scaled to a cube, so flat tips (star,
- * heart, bolt) cover the whole sphere instead of only its equator.
+ * heart, bolt) cover the whole sphere instead of only its equator. Tips that wrap around
+ * themselves (the curl and the bolt) crease near the blob, so tips are drawn two-sided.
  */
 object TipBlend {
     /**

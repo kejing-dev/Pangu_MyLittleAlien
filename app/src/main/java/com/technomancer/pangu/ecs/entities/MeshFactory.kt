@@ -29,12 +29,13 @@ class MeshFactory(private val perf: PerfProbe? = null) {
     private val meshCache = ConcurrentHashMap<String, MeshResource>()
     private val uploader = Executors.newFixedThreadPool(UPLOAD_THREADS) { r -> Thread(r, "PanguMeshUpload").apply { isDaemon = true } }
 
-    fun unlit(color: Int, cullFront: Boolean = false): UnlitMaterial =
-        materials.getOrPut(color.toLong() or (if (cullFront) 1L shl 32 else 0L)) {
+    fun unlit(color: Int, cullFront: Boolean = false, doubleSided: Boolean = false): UnlitMaterial =
+        materials.getOrPut(color.toLong() or (if (cullFront) 1L shl 32 else 0L) or (if (doubleSided) 1L shl 33 else 0L)) {
             UnlitMaterial.create().apply {
                 setBaseColor(rgb(color))
                 setApplyToneMapping(false)
                 if (cullFront) setCullingMode(MaterialCullingMode.FRONT)
+                if (doubleSided) setCullingMode(MaterialCullingMode.NONE)
             }
         }
 
@@ -49,15 +50,6 @@ class MeshFactory(private val perf: PerfProbe? = null) {
     fun preload(items: Collection<Pair<String, MeshData>>) {
         val tasks = items.filter { !meshCache.containsKey(it.first) }.map { (name, data) -> Callable { mesh(data, name) } }
         uploader.invokeAll(tasks).forEach { it.get() }
-    }
-
-    /** Uploads [data] as a new, uncached mesh that [replace] can rewrite later. Call off the main thread. */
-    fun createDynamic(data: MeshData, name: String): MeshResource = upload(data, name)
-
-    /** Rewrites [mesh] with [data]. Waits for an engine frame, so call off the main thread. */
-    fun replace(mesh: MeshResource, data: MeshData) {
-        val (model, bounds) = toModel(data)
-        mesh.replaceWithMeshModel(model, bounds)
     }
 
     private fun upload(data: MeshData, name: String): MeshResource {

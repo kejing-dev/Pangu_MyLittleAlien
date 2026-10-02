@@ -203,14 +203,15 @@ class AlienFactory(private val meshes: MeshFactory) {
 }
 
 /** Tints a model entity by swapping its first material for a shared one of [color]. */
-fun MeshFactory.tint(entity: Entity, color: Int) {
+fun MeshFactory.tint(entity: Entity, color: Int, doubleSided: Boolean = false) {
     val model = entity.components[ModelComponent::class.java] ?: return
-    if (model.materials.size > 0) model.materials.set(0, unlit(color))
+    if (model.materials.size > 0) model.materials.set(0, unlit(color, doubleSided = doubleSided))
 }
 
 /** Colours the body and stalk with [bodyColor] and every antenna tip with [tipColor], through the toon material when there is one. */
 fun MeshFactory.applyLook(rig: AlienRig, bodyColor: Int, tipColor: Int) {
     toon?.let { return it.applyLook(rig, bodyColor, tipColor) }
     rig.bodyModels.forEach { tint(it, bodyColor) }
-    rig.tipModels.forEach { tint(it, tipColor) }
+    // Tips draw both sides, so a crease in a morphing tip shows its back instead of a hole.
+    rig.tipModels.forEach { tint(it, tipColor, doubleSided = true) }
 }

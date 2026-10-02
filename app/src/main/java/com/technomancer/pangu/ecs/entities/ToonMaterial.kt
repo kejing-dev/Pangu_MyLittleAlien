@@ -4,6 +4,7 @@ import android.util.Log
 import com.pico.spatial.core.ecs.Entity
 import com.pico.spatial.core.ecs.ModelComponent
 import com.pico.spatial.core.ecs.resource.AssetBundle
+import com.pico.spatial.core.ecs.resource.MaterialCullingMode
 import com.pico.spatial.core.ecs.resource.ShaderGraphMaterial
 import com.pico.spatial.core.math.Color3
 import com.pico.spatial.core.math.Vector3
@@ -56,7 +57,11 @@ class ToonMaterial private constructor(private val body: ShaderGraphMaterial, pr
         fun load(): ToonMaterial? = try {
             val bundle = AssetBundle.load(BUNDLE)
             val body = ShaderGraphMaterial.loadFromAssetBundle(bundle, MATERIAL_PATH).also { setup(it, BODY_SHADE, BODY_GLOSS) }
-            val tip = ShaderGraphMaterial.loadFromAssetBundle(bundle, MATERIAL_PATH).also { setup(it, TIP_SHADE, TIP_GLOSS) }
+            // Tips draw both sides, so a crease in a morphing tip shows its back instead of a hole.
+            val tip = ShaderGraphMaterial.loadFromAssetBundle(bundle, MATERIAL_PATH).also {
+                setup(it, TIP_SHADE, TIP_GLOSS)
+                it.setCullingMode(MaterialCullingMode.NONE)
+            }
             Log.i("Pangu", "Using the PanguToon material for the alien")
             ToonMaterial(body, tip)
         } catch (e: Exception) {

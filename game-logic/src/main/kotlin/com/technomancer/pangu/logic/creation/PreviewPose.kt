@@ -37,10 +37,7 @@ class PreviewPose(private val config: LookConfig, private val random: IRandom) {
         private set
     var morphBlob = 0f
         private set
-
-    /** The tip the morph ends on. */
-    var morphTarget = -1
-        private set
+    private var morphTarget = -1
     private var melting = false
     private var morphAmount = 0f
 

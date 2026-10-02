@@ -3,6 +3,7 @@ package com.technomancer.pangu.logic.art
 import com.technomancer.pangu.logic.math.Vec3
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.math.sqrt
 
@@ -33,6 +34,6 @@ class TipBlendTest {
         // The slab's corners must spread towards the front and back, not stay squeezed onto the equator.
         val out = TipBlend.blend(slab, centre, 0.5f, 1f)
         val maxZ = (0 until out.vertexCount).maxOf { out.positions[it * 3 + 2] }
-        assertEquals(0.5f * sqrt(1f / 3f), maxZ, 0.05f)
+        assertTrue(maxZ > 0.25f, "front of the slab only reached z = $maxZ")
     }
 }

@@ -249,7 +249,7 @@ class PresentationSystem(
         // After a shape change the old tip melts into a blob and the new one grows out of it.
         val shown = if (pose.morphShape >= 0) pose.morphShape else logic.look.shape
         tipTransforms.forEachIndexed { i, t -> writes.scale(t, if (i == shown) Vector3.ONE else Vector3.ZERO) }
-        tipMorpher?.update(pose.morphShape, pose.morphBlob, pose.morphTarget)
+        tipMorpher?.update(pose.morphShape, pose.morphBlob)
     }
 
     /** The hatchling rises out of the opened egg during the last part of the hatch. */
