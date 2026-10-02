@@ -18,9 +18,8 @@ data class LookConfig(
     val defaultName: List<Int> = listOf(0, 0, 3),
     /** Preview turntable speed, radians per second. */
     val previewTurnSpeed: Float = 0.3f,
-    /** Overshoot of the tip's grow-in when the antenna shape changes, and the antenna kick it gives. */
-    val morphEaseC: Float = 1.9f,
-    val morphSec: Float = 0.35f,
+    /** Antenna shape change: seconds for the old tip to melt into a blob and the new one to grow out of it, and the antenna kick at the swap. */
+    val morphSec: Float = 0.5f,
     val morphWobble: Float = 3.2f,
     /** Pedestal disc diameter, metres. */
     val pedestalDiameter: Float = 0.21f,

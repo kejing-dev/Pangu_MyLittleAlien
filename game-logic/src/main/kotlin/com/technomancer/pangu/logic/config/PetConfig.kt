@@ -84,6 +84,6 @@ data class SimConfig(
 data class DebugConfig(
     /** Multiplies simulated time, e.g. 60 makes a minute pass per second. */
     val timeScale: Float = 1f,
-    /** Skip straight to this flow after the pad is placed (e.g. "Pet" until creation exists). */
-    val forceFlow: String = "Pet",
+    /** Skip straight to this flow after the pad is placed ("Pet" hatches a pet at once); empty runs the full flow. */
+    val forceFlow: String = "",
 )

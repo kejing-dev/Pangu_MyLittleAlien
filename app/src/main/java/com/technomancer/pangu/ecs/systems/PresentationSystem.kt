@@ -6,6 +6,7 @@ import com.pico.spatial.core.math.Vector3
 import com.technomancer.pangu.ecs.entities.AlienRig
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.MeshFactory
+import com.technomancer.pangu.ecs.entities.TipMorpher
 import com.technomancer.pangu.ecs.entities.applyLook
 import com.technomancer.pangu.ecs.entities.tint
 import com.technomancer.pangu.ecs.toSdk
@@ -62,6 +63,8 @@ class PresentationSystem(
     private val meshes: MeshFactory,
     /** Local scale of the pet rig at hatch size (the studio preview uses it too). */
     private val petHatchScale: Float,
+    /** Morphs the antenna tip between shapes in the studio. */
+    private val tipMorpher: TipMorpher? = null,
 ) {
     private val writes = TransformWrites()
     private val habitatScaleVector = Vector3(habitatScale)
@@ -243,7 +246,10 @@ class PresentationSystem(
             setPosition(antennaBase)
             setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), pose.antennaAngle).toSdk())
         }
-        writes.scale(tipTransforms.getOrNull(logic.look.shape), if (pose.tipScale == 1f) Vector3.ONE else Vector3(pose.tipScale))
+        // After a shape change the old tip melts into a blob and the new one grows out of it.
+        val shown = if (pose.morphShape >= 0) pose.morphShape else logic.look.shape
+        tipTransforms.forEachIndexed { i, t -> writes.scale(t, if (i == shown) Vector3.ONE else Vector3.ZERO) }
+        tipMorpher?.update(pose.morphShape, pose.morphBlob, pose.morphTarget)
     }
 
     /** The hatchling rises out of the opened egg during the last part of the hatch. */

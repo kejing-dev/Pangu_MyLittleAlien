@@ -63,6 +63,7 @@ import com.technomancer.pangu.ui.eggPieItems
 import com.technomancer.pangu.ui.petPieItems
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.PropFactory
+import com.technomancer.pangu.ecs.entities.TipMorpher
 import com.technomancer.pangu.ecs.entities.ToonMaterial
 import com.technomancer.pangu.ecs.systems.SceneEntities
 import com.technomancer.pangu.ecs.entities.MeshFactory
@@ -366,7 +367,7 @@ fun PanguStage() {
         // Soft contact shadows: the pad receives, the pet casts.
         habitat.findEntity("PH_PadTop")?.components?.set(GroundShadowComponent(false, true))
         rig?.root?.components?.set(GroundShadowComponent(true, false))
-        if (rig != null) ToonMaterial.tryApply(rig.root)
+        meshes.toon = ToonMaterial.load()
         sfx.petEmitter = rig?.root
         sfx.uiEmitter = infoPanel ?: habitat
         sfx.eggEmitter = eggRig.root
@@ -391,6 +392,7 @@ fun PanguStage() {
             placement.habitatScale,
             meshes,
             petConfig.adultHeight * petConfig.hatchGrowth / AlienParts.MODEL_HEIGHT / placement.habitatScale,
+            rig?.let { TipMorpher(it, alienFactory.tipMorphSources(), meshes) },
         )
         perf.root = root
         perf.coldStartDone()

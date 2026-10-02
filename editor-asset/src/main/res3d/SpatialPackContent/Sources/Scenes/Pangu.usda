@@ -1,0 +1,234 @@
+#usda 1.0
+(
+    customLayerData = {
+        string Copyright = "Copyright 2022 - 2024 PICO. All rights reserved."
+        string RuntimeVersion = "Runtime V6.1.0.0.rls.25"
+        string Version = "Spatial Editor V6.1.9"
+    }
+    defaultPrim = "Root"
+    metersPerUnit = 1
+    upAxis = "Y"
+)
+
+def Xform "Root"
+{
+    reorder nameChildren = ["Sphere", "PanguToon"]
+    def Sphere "Sphere" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        float3[] extent = [(-0.1, -0.1, -0.1), (0.1, 0.1, 0.1)]
+        rel material:binding = </Root/PanguToon> (
+            bindMaterialAs = "weakerThanDescendants"
+        )
+        double radius = 0.10000000149011612
+
+        def Material "DefaultMaterial" (
+            customData = {
+                string materialType = "PHYSICALLY_BASED"
+            }
+        )
+        {
+            token outputs:surface.connect = </Root/Sphere/DefaultMaterial/DefaultSurfaceShader.outputs:surface>
+
+            def Shader "DefaultSurfaceShader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                token outputs:surface
+            }
+        }
+    }
+
+    def Material "PanguToon" (
+        customData = {
+            bool applyToneMapping = 1
+            string materialType = "SHADER_GRAPH"
+            float opacityThreshold = 0
+            string shaderGraphGuid = "6d3135a0-532b-4a01-a3ce-b58a34627b36"
+        }
+    )
+    {
+        reorder properties = ["inputs:toonBaseColor", "inputs:toonShadeColor", "inputs:toonGloss", "inputs:toonRim", "inputs:toonSaturation", "inputs:toonLightDir", "outputs:mtlx:surface", "outputs:spatial:vertex"]
+        color3f inputs:toonBaseColor = (0.54901963, 0.8509804, 0.7490196) (
+            colorSpace = "srgb_displayp3"
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (151.07993, 372.88812)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        float inputs:toonGloss = 0.1 (
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (172.11488, 499.0979)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        float3 inputs:toonLightDir = (0.55, 0.75, 0.9) (
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (142.35963, 683.97064)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        float inputs:toonRim = 0.25 (
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (177.5974, 560.1888)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        float inputs:toonSaturation = 1 (
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (133.2897, 619.6014)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        color3f inputs:toonShadeColor = (0.8, 0.7607843, 0.85882354) (
+            colorSpace = "srgb_displayp3"
+            customData = {
+                dictionary spatial = {
+                    float2 positionInSubgraph = (141.12187, 433.86713)
+                    int stackingOrderInSubgraph = 0
+                }
+            }
+        )
+        token outputs:mtlx:surface.connect = </Root/PanguToon/UnlitSurface.outputs:out>
+        token outputs:spatial:vertex
+        float2 ui:nodegraph:node:pos = (973.41705, 441.82693)
+        int ui:nodegraph:node:stackingOrder = 0
+        float2 ui:nodegraph:subgraphOutputs:pos = (973.41705, 441.82693)
+        int ui:nodegraph:subgraphOutputs:stackingOrder = 0
+
+        def NodeGraph "CustomFunction" (
+            customData = {
+                bool isCustomFunction = 1
+            }
+        )
+        {
+            reorder properties = ["inputs:sourceFile", "inputs:functionName", "inputs:toonNormal", "inputs:toonViewDir", "inputs:toonBaseColor", "inputs:toonShadeColor", "inputs:toonGloss", "inputs:toonRim", "inputs:toonSaturation", "inputs:toonLightDir", "outputs:toonColor"]
+            string inputs:functionName = "panguToon"
+            string inputs:functionName.connect = None
+            asset inputs:sourceFile = @../panguToon.glsl@
+            asset inputs:sourceFile.connect = None
+            color3f inputs:toonBaseColor = (0, 0, 0) (
+                colorSpace = "lin_srgb"
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            color3f inputs:toonBaseColor.connect = </Root/PanguToon.inputs:toonBaseColor>
+            float inputs:toonGloss = 0 (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float inputs:toonGloss.connect = </Root/PanguToon.inputs:toonGloss>
+            float3 inputs:toonLightDir = (0, 0, 0) (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float3 inputs:toonLightDir.connect = </Root/PanguToon.inputs:toonLightDir>
+            float3 inputs:toonNormal = (0, 0, 0) (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float3 inputs:toonNormal.connect = </Root/PanguToon/Normal.outputs:out>
+            float inputs:toonRim = 0 (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float inputs:toonRim.connect = </Root/PanguToon.inputs:toonRim>
+            float inputs:toonSaturation = 0 (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float inputs:toonSaturation.connect = </Root/PanguToon.inputs:toonSaturation>
+            color3f inputs:toonShadeColor = (0, 0, 0) (
+                colorSpace = "lin_srgb"
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            color3f inputs:toonShadeColor.connect = </Root/PanguToon.inputs:toonShadeColor>
+            float3 inputs:toonViewDir = (0, 0, 0) (
+                customData = {
+                    dictionary spatial = {
+                        float2 positionInSubgraph = (-40, -73.5)
+                        int stackingOrderInSubgraph = 0
+                    }
+                }
+            )
+            float3 inputs:toonViewDir.connect = </Root/PanguToon/ViewDirection.outputs:out>
+            color3f outputs:toonColor
+            float2 ui:nodegraph:node:pos = (434.27756, 83.74671)
+            int ui:nodegraph:node:stackingOrder = 0
+        }
+
+        def Shader "Normal"
+        {
+            uniform token info:id = "ND_normal_vector3"
+            string inputs:space = "object"
+            float3 outputs:out
+            float2 ui:nodegraph:node:pos = (172.29955, 161.28519)
+            int ui:nodegraph:node:stackingOrder = 0
+        }
+
+        def Shader "ViewDirection"
+        {
+            uniform token info:id = "ND__viewdirection_vector3"
+            string inputs:space = "object"
+            float3 outputs:out
+            float2 ui:nodegraph:node:pos = (161.66219, 240.75769)
+            int ui:nodegraph:node:stackingOrder = 0
+        }
+
+        def Shader "UnlitSurface"
+        {
+            uniform token info:id = "ND__unlit_surfaceshader"
+            bool inputs:applyPostProcessToneMap = 1
+            color3f inputs:color = (1, 1, 1) (
+                colorSpace = "lin_srgb"
+            )
+            color3f inputs:color.connect = </Root/PanguToon/CustomFunction.outputs:toonColor>
+            bool inputs:hasPremultipliedAlpha = 0
+            float inputs:opacity = 1
+            float inputs:opacityThreshold = 0
+            token outputs:out
+            float2 ui:nodegraph:node:pos = (757.10834, 401.49615)
+            int ui:nodegraph:node:stackingOrder = 0
+        }
+    }
+}
+

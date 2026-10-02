@@ -510,7 +510,7 @@ class PanguLogic(
             ScreenId.C03 -> {
                 val old = flow.look
                 flow.look = catalog.randomize(random, wheels)
-                if (flow.look.shape != old.shape) preview.morph()
+                if (flow.look.shape != old.shape) preview.morph(old.shape, flow.look.shape)
             }
             ScreenId.C04 -> flow.backToLook()
             ScreenId.C05 -> flow.backToName()
@@ -530,7 +530,7 @@ class PanguLogic(
             LookPick.TIP -> look.copy(tip = index.coerceIn(0, catalog.swatchCount - 1))
             else -> look.copy(shape = index.coerceIn(0, LookCatalog.SHAPES.size - 1))
         }
-        if (flow.look.shape != look.shape) preview.morph()
+        if (flow.look.shape != look.shape) preview.morph(look.shape, flow.look.shape)
     }
 
     /** C05 Set egg: the egg is made with a fresh spark value and glides into the nest. */

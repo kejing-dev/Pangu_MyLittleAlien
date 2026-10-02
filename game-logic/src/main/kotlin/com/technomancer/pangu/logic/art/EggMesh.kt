@@ -3,7 +3,6 @@ package com.technomancer.pangu.logic.art
 import com.technomancer.pangu.logic.math.Vec3
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -17,7 +16,7 @@ data class ShellMark(val at: SurfacePoint, val width: Float, val height: Float, 
 class EggHalves(val top: MeshData, val bottom: MeshData)
 
 /**
- * The egg as a lathe: height 0.11 m, radius r(y) = 0.041·sin(πy)^0.9·(1 − 0.12y) for y from 0
+ * The egg as a lathe: height 0.11 m, widest radius 0.041 m (see [radius]) for y from 0
  * (bottom) to 1 (top), 32 segments around and 24 rows up. It is split into a top and a bottom
  * mesh along a zigzag seam 44 % of the way down from the top. The origin is the bottom centre;
  * +Z is the front the player sees.
@@ -36,10 +35,19 @@ object EggMesh {
     private const val BOTTOM_ROWS = 13
     private const val TOP_ROWS = ROWS - BOTTOM_ROWS
 
+    /**
+     * Profile radius at height fraction [y]: two half-ellipses joined at the widest point, 37 % of
+     * the way up, like the mockup's egg (border-radius 50% / 63% 63% 37% 37%). The bottom is round
+     * and blunt, the top taller and narrower, and neither end comes to a point.
+     */
     fun radius(y: Float): Float {
-        val s = sin(PI.toFloat() * y.coerceIn(0f, 1f)).coerceAtLeast(0f)
-        return 0.041f * s.pow(0.9f) * (1f - 0.12f * y)
+        val t = y.coerceIn(0f, 1f)
+        val d = if (t < WIDEST) (WIDEST - t) / WIDEST else (t - WIDEST) / (1f - WIDEST)
+        return MAX_RADIUS * sqrt((1f - d * d).coerceAtLeast(0f))
     }
+
+    private const val MAX_RADIUS = 0.041f
+    private const val WIDEST = 0.37f
 
     /** Widest radius of the egg. */
     val maxRadius: Float by lazy { (0..200).maxOf { radius(it / 200f) } }

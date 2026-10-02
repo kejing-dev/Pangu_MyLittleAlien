@@ -7,8 +7,8 @@ import kotlin.math.sin
 
 /**
  * Motion of the studio preview on the pedestal: it turns slowly on its own, can be spun by
- * dragging, breathes and blinks, its antenna springs when booped, and a new antenna tip grows
- * in with a springy overshoot.
+ * dragging, breathes and blinks, its antenna springs when booped, and a new antenna tip morphs
+ * out of the old one.
  */
 class PreviewPose(private val config: LookConfig, private val random: IRandom) {
     var yaw = 0f
@@ -28,10 +28,21 @@ class PreviewPose(private val config: LookConfig, private val random: IRandom) {
     private var blinkT = -1f
     private var time = 0f
 
-    /** Scale of the antenna tip while it grows in after a shape change, overshooting past 1. */
-    var tipScale = 1f
+    /**
+     * The tip being morphed after a shape change (-1 when none) and how far it has melted into the
+     * shared round blob (0 = its own shape, 1 = the blob). The old tip melts in, then the new tip
+     * grows out of the same blob.
+     */
+    var morphShape = -1
         private set
-    private var morphT = -1f
+    var morphBlob = 0f
+        private set
+
+    /** The tip the morph ends on. */
+    var morphTarget = -1
+        private set
+    private var melting = false
+    private var morphAmount = 0f
 
     fun update(dt: Float) {
         if (dt <= 0f) return
@@ -53,15 +64,26 @@ class PreviewPose(private val config: LookConfig, private val random: IRandom) {
         antennaVelocity += accel * dt
         antennaAngle = (antennaAngle + antennaVelocity * dt).coerceIn(-0.8f, 0.8f)
 
-        if (morphT >= 0f) {
-            morphT = (morphT + dt / config.morphSec).coerceAtMost(1f)
-            tipScale = easeOutBack(morphT, config.morphEaseC)
-            if (morphT >= 1f) {
-                morphT = -1f
-                tipScale = 1f
-            }
-        }
+        if (morphShape >= 0) stepMorph(dt)
         updateBlink(dt)
+    }
+
+    /** Half of the morph each way: melt the old tip into the blob, then grow the new one out of it. */
+    private fun stepMorph(dt: Float) {
+        val half = config.morphSec / 2f
+        if (melting) {
+            morphAmount = (morphAmount + dt / half).coerceAtMost(1f)
+            if (morphAmount >= 1f) {
+                // The swap happens inside the blob, where both tips look the same.
+                melting = false
+                morphShape = morphTarget
+                antennaVelocity += config.morphWobble
+            }
+        } else {
+            morphAmount = (morphAmount - dt / half).coerceAtLeast(0f)
+            if (morphAmount <= 0f) morphShape = -1
+        }
+        morphBlob = smooth(morphAmount)
     }
 
     private fun updateBlink(dt: Float) {
@@ -96,11 +118,18 @@ class PreviewPose(private val config: LookConfig, private val random: IRandom) {
         antennaVelocity += BOOP_KICK
     }
 
-    /** The antenna shape changed: the new tip grows in and the antenna wobbles. */
-    fun morph() {
-        morphT = 0f
-        tipScale = 0f
-        antennaVelocity += config.morphWobble
+    /**
+     * The antenna shape changed from [fromShape] to [toShape]: the tip on show melts into the blob,
+     * then [toShape] grows out of it. A change in the middle of a morph carries on from where the
+     * tip on show is.
+     */
+    fun morph(fromShape: Int, toShape: Int) {
+        if (morphShape < 0) {
+            morphShape = fromShape
+            morphAmount = 0f
+        }
+        morphTarget = toShape
+        melting = morphShape != toShape
     }
 
     companion object {
@@ -112,11 +141,8 @@ class PreviewPose(private val config: LookConfig, private val random: IRandom) {
         private const val MAX_SPIN = 8f
         private const val BOOP_KICK = 4f
 
-        /** Ease-out with overshoot: 0 at t = 0, 1 at t = 1, peaking past 1 in between. */
-        fun easeOutBack(t: Float, c: Float): Float {
-            val u = t - 1f
-            return 1f + (c + 1f) * u * u * u + c * u * u
-        }
+        /** Smoothstep: eases in and out between 0 and 1. */
+        fun smooth(t: Float): Float = t * t * (3f - 2f * t)
 
         const val TAU = (2 * PI).toFloat()
     }

@@ -23,6 +23,9 @@ import com.technomancer.pangu.logic.art.MeshData
  */
 class MeshFactory(private val perf: PerfProbe? = null) {
     private val materials = HashMap<Long, UnlitMaterial>()
+
+    /** The Spatial Editor toon material for the alien, when the editor bundle has one. */
+    var toon: ToonMaterial? = null
     private val meshCache = ConcurrentHashMap<String, MeshResource>()
     private val uploader = Executors.newFixedThreadPool(UPLOAD_THREADS) { r -> Thread(r, "PanguMeshUpload").apply { isDaemon = true } }
 
@@ -48,8 +51,26 @@ class MeshFactory(private val perf: PerfProbe? = null) {
         uploader.invokeAll(tasks).forEach { it.get() }
     }
 
+    /** Uploads [data] as a new, uncached mesh that [replace] can rewrite later. Call off the main thread. */
+    fun createDynamic(data: MeshData, name: String): MeshResource = upload(data, name)
+
+    /** Rewrites [mesh] with [data]. Waits for an engine frame, so call off the main thread. */
+    fun replace(mesh: MeshResource, data: MeshData) {
+        val (model, bounds) = toModel(data)
+        mesh.replaceWithMeshModel(model, bounds)
+    }
+
     private fun upload(data: MeshData, name: String): MeshResource {
         val started = System.nanoTime()
+        val (model, bounds) = toModel(data)
+        val built = System.nanoTime()
+        return MeshResource.createWithMeshModel(model, bounds, name).also {
+            perf?.meshTriangles(it, data.triangleCount)
+            perf?.meshUploaded(name, data.vertexCount, (built - started) / 1e6, (System.nanoTime() - built) / 1e6)
+        }
+    }
+
+    private fun toModel(data: MeshData): Pair<MeshModel, BoundingBox> {
         val n = data.vertexCount
         val positions = ArrayList<Vector3>(n)
         val normals = ArrayList<Vector3>(n)
@@ -69,11 +90,7 @@ class MeshFactory(private val perf: PerfProbe? = null) {
         } else {
             MeshModel(positions, data.indices.toList(), normals)
         }
-        val built = System.nanoTime()
-        return MeshResource.createWithMeshModel(model, bounds, name).also {
-            perf?.meshTriangles(it, data.triangleCount)
-            perf?.meshUploaded(name, data.vertexCount, (built - started) / 1e6, (System.nanoTime() - built) / 1e6)
-        }
+        return model to bounds
     }
 
     /** A named model entity at [position] in its parent's space. */

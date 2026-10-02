@@ -38,6 +38,8 @@ class AlienRig(
     val freckles: List<Entity> = emptyList(),
     /** A small sparkle that drifts up from the tip of a shimmering pet. */
     val shimmerMote: Entity? = null,
+    /** The ink outline of each tip shape, in the same order as [tipModels]. */
+    val tipOutlines: List<Entity?> = emptyList(),
 )
 
 /**
@@ -65,8 +67,8 @@ class AlienFactory(private val meshes: MeshFactory) {
         add(BODY, parts[AlienParts.BODY]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
         add(STALK, parts[AlienParts.STALK]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, BODY_SHADE, 0.10f)) })
         AlienParts.TIPS.forEachIndexed { i, name ->
-            add(tipKey(i), parts[name]?.let { ToonBake.bake(it, ToonParams(WHITE_RGB, TIP_SHADE, 0.25f)) })
-            add(tipOutlineKey(i), parts[name]?.let { OutlineHull.build(it, 0.008f) })
+            add(tipKey(i), parts[name]?.let { ToonBake.bake(it, TIP_TOON) })
+            add(tipOutlineKey(i), parts[name]?.let { OutlineHull.build(it, TIP_OUTLINE) })
         }
         add(EYES, parts[AlienParts.EYES]?.let { ToonBake.bake(it, ToonParams(EYE_BASE, EYE_SHADE, 0f, rim = 0f)) })
         add(HIGHLIGHTS, parts[AlienParts.HIGHLIGHTS])
@@ -109,6 +111,7 @@ class AlienFactory(private val meshes: MeshFactory) {
         }
         val tips = ArrayList<Entity>()
         val tipModels = ArrayList<Entity>()
+        val tipOutlines = ArrayList<Entity?>()
         for (i in AlienParts.TIPS.indices) {
             val tipPivot = pivot("PetTip$i", AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE)
             part(tipKey(i), WHITE, -AlienParts.TIP_ANCHOR)?.let {
@@ -116,7 +119,7 @@ class AlienFactory(private val meshes: MeshFactory) {
                 tipPivot.addChild(it)
                 tipModels += it
             }
-            part(tipOutlineKey(i), INK, -AlienParts.TIP_ANCHOR)?.let { tipPivot.addChild(it) }
+            tipOutlines += part(tipOutlineKey(i), INK, -AlienParts.TIP_ANCHOR)?.also { tipPivot.addChild(it) }
             antenna.addChild(tipPivot)
             tips += tipPivot
         }
@@ -128,8 +131,12 @@ class AlienFactory(private val meshes: MeshFactory) {
         // Touch targets: the body capsule and the antenna tip.
         body.addChild(collider("PetBodyCollider", Vec3(0f, 1.16f, 0f), TargetId.PET_BODY) { ShapeResource.createCapsule(2.3f, 0.85f) })
         antenna.addChild(collider("PetTipCollider", AlienParts.TIP_ANCHOR - AlienParts.ANTENNA_BASE + Vec3(0f, 0.12f, 0f), TargetId.PET_TIP) { ShapeResource.createSphere(0.3f) })
-        return AlienRig(root, body, eyes, antenna, bodyModels, tips, tipModels, freckles, mote)
+        return AlienRig(root, body, eyes, antenna, bodyModels, tips, tipModels, freckles, mote, tipOutlines)
     }
+
+    /** The white-baked mesh of each tip shape and of its outline, for morphing between shapes. */
+    fun tipMorphSources(): List<Pair<MeshData?, MeshData?>> =
+        AlienParts.TIPS.indices.map { baked[tipKey(it)] to baked[tipOutlineKey(it)] }
 
     private fun part(key: String, color: Int, offset: Vec3 = Vec3.ZERO): Entity? {
         val data = baked[key] ?: return null
@@ -184,6 +191,12 @@ class AlienFactory(private val meshes: MeshFactory) {
         private val EYE_CENTRE = Vec3(0f, 1.455f, 0.68f)
         private val BODY_SHADE = floatArrayOf(0.8f, 0.76f, 0.86f)
         private val TIP_SHADE = floatArrayOf(0.86f, 0.82f, 0.9f)
+
+        /** Toon settings the tips are baked with (white, tinted by their material). */
+        val TIP_TOON = ToonParams(WHITE_RGB, TIP_SHADE, 0.25f)
+
+        /** Width of the tips' ink outline, model units. */
+        const val TIP_OUTLINE = 0.008f
         private val EYE_BASE = floatArrayOf(0.13f, 0.12f, 0.15f)
         private val EYE_SHADE = floatArrayOf(0.7f, 0.7f, 0.75f)
     }
@@ -195,8 +208,9 @@ fun MeshFactory.tint(entity: Entity, color: Int) {
     if (model.materials.size > 0) model.materials.set(0, unlit(color))
 }
 
-/** Tints the body and stalk with [bodyColor] and every antenna tip with [tipColor]. */
+/** Colours the body and stalk with [bodyColor] and every antenna tip with [tipColor], through the toon material when there is one. */
 fun MeshFactory.applyLook(rig: AlienRig, bodyColor: Int, tipColor: Int) {
+    toon?.let { return it.applyLook(rig, bodyColor, tipColor) }
     rig.bodyModels.forEach { tint(it, bodyColor) }
     rig.tipModels.forEach { tint(it, tipColor) }
 }
