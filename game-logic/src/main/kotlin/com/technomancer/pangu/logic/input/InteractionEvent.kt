@@ -59,7 +59,6 @@ enum class InteractionType {
     UiSettings,
 
     /** A language row or segment; the target field holds the Language ordinal. */
-    UiLanguage,
 
     /** The volume slider; the target field holds 0..100. */
     UiVolume,

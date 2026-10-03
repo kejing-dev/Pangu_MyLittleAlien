@@ -41,13 +41,13 @@ class LocServiceTest {
     @Test
     fun switchLanguageRebuildsVisibleStrings() {
         val loc = LocService(tables, Language.En)
-        val visible = listOf("scr.C01.t", "scr.C36.t", "ui.volume")
+        val visible = listOf("scr.C02.t", "scr.C36.t", "ui.volume")
         val en = visible.map { loc.get(it) }
         loc.setLanguage(Language.Zh)
         val zh = visible.map { loc.get(it) }
         loc.setLanguage(Language.Es)
         val es = visible.map { loc.get(it) }
-        assertEquals(listOf("Hello! Pick a language", "Settings", "Volume"), en)
+        assertEquals(listOf("Set up the habitat", "Settings", "Volume"), en)
         for (i in visible.indices) {
             assertTrue(zh[i] != en[i] && es[i] != en[i], "${visible[i]} did not change")
         }

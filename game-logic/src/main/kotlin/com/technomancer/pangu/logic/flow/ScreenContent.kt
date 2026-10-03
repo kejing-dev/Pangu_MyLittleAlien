@@ -1,7 +1,7 @@
 package com.technomancer.pangu.logic.flow
 
 /** What the info panel's middle block shows. */
-enum class PanelKind { Lang, Hab, Look, Name, Msg, Prog, Rows, Opts, Pers, Needs, Settings, Steps }
+enum class PanelKind { Hab, Look, Name, Msg, Prog, Rows, Opts, Pers, Needs, Settings, Steps }
 
 /** Which gesture hint the chip under the panel shows. */
 enum class Hint(val key: String) {
@@ -28,7 +28,6 @@ data class ScreenContent(
 ) {
     companion object {
         private val table: Map<ScreenId, ScreenContent> = listOf(
-            ScreenContent(ScreenId.C01, PanelKind.Lang, Hint.Poke, primaryKey = "scr.C01.p"),
             ScreenContent(ScreenId.C02, PanelKind.Hab, Hint.Grab, primaryKey = "scr.C02.p"),
             ScreenContent(ScreenId.C36, PanelKind.Settings, Hint.Poke, bodyKey = null, primaryKey = "scr.C36.s"),
             ScreenContent(ScreenId.C03, PanelKind.Look, Hint.Poke, primaryKey = "scr.C03.p", secondaryKey = "scr.C03.s"),

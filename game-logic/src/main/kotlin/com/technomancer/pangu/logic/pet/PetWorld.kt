@@ -168,11 +168,26 @@ class PetWorld(
         actions.startPlay(efficiency)
     }
 
+    /** The player picked another action from the orb: a running bath, dance, cuddle or play stops and its props go away. */
+    fun interruptFor(next: PetAction) {
+        val running = actions.activity
+        val same = (next == PetAction.Clean && running == PetActivity.Cleaning) ||
+            (next == PetAction.Dance && running == PetActivity.Dancing) ||
+            (next == PetAction.Cuddle && running == PetActivity.Cuddling) ||
+            (next == PetAction.Play && running == PetActivity.Playing)
+        if (same) return
+        actions.interrupt()
+        tubOut = false
+        if (next != PetAction.Play) ballOut = false
+        body.goal = null
+    }
+
     /** Closes whatever open-ended activity is running (cuddle, play) and hides props. */
     fun endActivity() {
         actions.stopOpenEnded()
         showTray(false)
         ballOut = false
+        tubOut = false
         body.goal = null
     }
 
@@ -182,6 +197,11 @@ class PetWorld(
             return
         }
         val activity = actions.activity
+        // Another action took over from a bath: the tub goes away and the pet stops heading for it.
+        if (tubOut && activity != PetActivity.Cleaning) {
+            tubOut = false
+            if (body.goal == TUB_CENTRE) body.goal = null
+        }
         val asleep = isNight || activity == PetActivity.Napping
         val hours = dt / 3600f
         needsSim.step(needs, hours, asleep, modifiers)

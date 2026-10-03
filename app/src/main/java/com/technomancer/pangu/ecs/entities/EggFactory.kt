@@ -270,6 +270,8 @@ class EggFactory(private val meshes: MeshFactory) {
             setBaseColor(rgb(color, GLOW_OPACITY))
             setOpacity(GLOW_OPACITY)
             setApplyToneMapping(false)
+            // Shared and swapped between models, so kept alive when none uses it.
+            toGlobal()
         }
     }
 

@@ -43,15 +43,6 @@ class ScreenMachineTest {
     }
 
     @Test
-    fun firstLaunchC01ContinueC02() {
-        val m = ScreenMachine(ScreenId.C01)
-        assertFalse(m.isPlacingPad)
-        assertEquals(ScreenEffect.None, m.primary())
-        assertEquals(ScreenId.C02, m.current)
-        assertTrue(m.isPlacingPad)
-    }
-
-    @Test
     fun settingsSitsOnTopAndCloses() {
         val m = ScreenMachine(ScreenId.C23)
         m.openSettings()

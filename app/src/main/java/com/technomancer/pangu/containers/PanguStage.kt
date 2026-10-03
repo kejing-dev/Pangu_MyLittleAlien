@@ -138,7 +138,6 @@ fun PanguStage() {
             onInfo = { events.push(InteractionType.UiInfo) },
             onAssist = { events.push(InteractionType.UiAssist) },
             onSettings = { events.push(InteractionType.UiSettings) },
-            onLanguage = { events.push(InteractionType.UiLanguage, it.ordinal) },
             onVolume = { events.push(InteractionType.UiVolume, it) },
             onSound = { events.push(InteractionType.UiSound, if (it) 1 else 0) },
             onHaptics = { events.push(InteractionType.UiHaptics, if (it) 1 else 0) },

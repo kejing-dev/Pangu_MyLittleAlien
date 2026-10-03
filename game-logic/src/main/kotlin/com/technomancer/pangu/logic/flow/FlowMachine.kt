@@ -6,7 +6,7 @@ import com.technomancer.pangu.logic.personality.SparkValue
 
 /**
  * The game's top-level flow and the screen each step shows:
- * Onboarding (C01 → C02) → Creation (C03 look, C04 name, C05 confirm, C06 seal) → Incubation (C07…)
+ * Onboarding (C02) → Creation (C03 look, C04 name, C05 confirm, C06 seal) → Incubation (C07…)
  * → Hatching (C21) → Pet (C23…). Dormant (C19) and WentHome (C33) cards lead back to Creation
  * with the last look preselected, skipping onboarding.
  */
@@ -18,11 +18,6 @@ class FlowMachine(val screens: ScreenMachine, initialLook: PetLook = PetLook()) 
 
     /** The look of the last egg that was set; a new egg starts from it. */
     var lastLook: PetLook = initialLook
-
-    /** C01 Continue: the language is chosen, on to placing the habitat. */
-    fun continueFromLanguage() {
-        if (screens.current == ScreenId.C01) screens.primary()
-    }
 
     /** The pad was confirmed on C02: the first launch moves on to the studio. */
     fun padConfirmed() {

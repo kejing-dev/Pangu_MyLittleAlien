@@ -63,12 +63,10 @@ class KeeperIdsTest {
 
 class FlowMachineTest {
     @Test
-    fun firstLaunchC01C02C03() {
-        val screens = ScreenMachine(ScreenId.C01)
+    fun firstLaunchC02C03() {
+        val screens = ScreenMachine(ScreenId.C02)
         val flow = FlowMachine(screens)
         assertEquals(FlowState.Onboarding, flow.flow)
-        flow.continueFromLanguage()
-        assertEquals(ScreenId.C02, screens.current)
         assertEquals(ScreenEffect.ConfirmPad, screens.primary())
         flow.padConfirmed()
         assertEquals(ScreenId.C03, screens.current)

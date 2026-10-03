@@ -5,7 +5,8 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-enum class Wave { Sine, Square, Triangle }
+/** Waveforms. [Noise] is white noise (a fixed seed, so clips render the same every build) that decays over the note, for crunches and taps. */
+enum class Wave { Sine, Square, Triangle, Noise }
 
 /**
  * One note: a waveform gliding through [freqs] (Hz, evenly spaced over the note) for [durationSec],
@@ -36,6 +37,7 @@ object WaveRenderer {
         val count = (n.durationSec * SAMPLE_RATE).toInt()
         val ramp = (RAMP_SEC * SAMPLE_RATE).toInt().coerceAtLeast(1)
         var phase = 0.0
+        var seed = 0x2545F491 + start
         for (i in 0 until count) {
             val t = i.toFloat() / count
             val f = frequencyAt(n.freqs, t)
@@ -45,8 +47,13 @@ object WaveRenderer {
                 Wave.Sine -> sin(2.0 * PI * phase).toFloat()
                 Wave.Square -> if (cycle < 0.5f) 1f else -1f
                 Wave.Triangle -> 1f - 4f * abs(cycle - 0.5f)
+                Wave.Noise -> {
+                    seed = seed xor (seed shl 13); seed = seed xor (seed ushr 17); seed = seed xor (seed shl 5)
+                    (seed and 0xFFFF) / 32768f - 1f
+                }
             }
-            val env = minOf(1f, i.toFloat() / ramp, (count - 1 - i).toFloat() / ramp)
+            val ramps = minOf(1f, i.toFloat() / ramp, (count - 1 - i).toFloat() / ramp)
+            val env = if (n.wave == Wave.Noise) ramps * (1f - t) * (1f - t) else ramps
             val idx = start + i
             if (idx < mix.size) mix[idx] += s * n.gain * env
         }

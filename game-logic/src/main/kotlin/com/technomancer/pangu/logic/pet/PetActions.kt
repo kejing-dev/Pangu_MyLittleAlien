@@ -93,6 +93,14 @@ class PetActions(private val config: PetConfig) {
         timedSec = 0f
     }
 
+    /** Stops a bath, dance, cuddle or play early because the player picked something else; eating and napping keep going. */
+    fun interrupt() {
+        if (activity == PetActivity.Cleaning || activity == PetActivity.Dancing || activity == PetActivity.Cuddling || activity == PetActivity.Playing) {
+            activity = PetActivity.Idle
+            timedSec = 0f
+        }
+    }
+
     /** Ends cuddling or play (the player closed it); other actions keep running. */
     fun stopOpenEnded() {
         if (activity == PetActivity.Cuddling || activity == PetActivity.Playing) activity = PetActivity.Idle

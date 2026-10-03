@@ -5,6 +5,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.technomancer.pangu.logic.PanguLogic
+import com.technomancer.pangu.logic.loc.Language
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.incubation.toData
 import com.technomancer.pangu.logic.habitat.PadPose
@@ -51,6 +52,8 @@ class SessionController(
     initial: SaveData,
     private val catchUp: CatchUp? = null,
     private val welcomeMinMinutes: Float = 60f,
+    /** Reads the device's language; checked on every resume so a change in the system settings shows at once. */
+    private val deviceLanguage: () -> Language = { logic.language },
 ) : LifecycleEventObserver {
 
     private val ioThread = Executors.newSingleThreadExecutor { r -> Thread(r, "PanguSave") }
@@ -74,6 +77,7 @@ class SessionController(
                 persist()
             }
             Lifecycle.Event.ON_RESUME -> {
+                logic.language = deviceLanguage()
                 catchUpPause()
                 logic.setPaused(false)
                 ui.publishIfChanged(logic)
@@ -136,7 +140,6 @@ class SessionController(
             lastLook = logic.flow.lastLook,
             egg = eggData,
             micChoice = logic.micChoice,
-            language = logic.language.code,
             settings = SettingsData(logic.volume, logic.soundOn, logic.hapticsOn),
             personality = logic.pet.personality,
             padPose = padData,

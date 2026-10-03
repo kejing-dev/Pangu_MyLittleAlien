@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
-import com.technomancer.pangu.logic.loc.Language
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,7 +67,6 @@ class PanelActions(
     val onInfo: () -> Unit = {},
     val onAssist: () -> Unit = {},
     val onSettings: () -> Unit = {},
-    val onLanguage: (Language) -> Unit = {},
     val onVolume: (Int) -> Unit = {},
     val onSound: (Boolean) -> Unit = {},
     val onHaptics: (Boolean) -> Unit = {},
@@ -116,7 +114,6 @@ fun InfoPanel(
             bodyText(content, pet, egg, name, loc)?.let {
                 Text(text = it, color = PanguTokens.body, fontSize = scale.sp(18f))
             }
-            if (content.kind == PanelKind.Lang) LangBlock(state.settings?.language ?: loc.language, loc, scale, actions.onLanguage)
             if (content.kind == PanelKind.Settings && state.settings != null) SettingsBlock(state.settings, loc, scale, actions)
             if (content.kind == PanelKind.Look && state.studio != null) LookBlock(state.studio, loc, scale, actions.onLook)
             if (content.kind == PanelKind.Name && state.studio != null) NameBlock(state.studio, scale, actions.onWheel)
@@ -158,8 +155,9 @@ fun InfoPanel(
                 if (egg?.awayBands != null) KeyValueRows(eggAwayRows(egg, loc), scale) else if (pet != null) AwayRows(pet, loc, scale)
             }
             val primaryKey = if (content.id == ScreenId.C35 && egg?.awayBands != null) "welcome.egg.ok" else content.primaryKey
-            primaryKey?.let { PillButton(loc.get(it), scale, primary = true, onClick = actions.onPrimary) }
-            content.secondaryKey?.let { PillButton(loc.get(it), scale, primary = false, onClick = actions.onSecondary) }
+            // Button labels can name the pet too ("Meet {name}").
+            primaryKey?.let { PillButton(loc.format(it, "name" to name), scale, primary = true, onClick = actions.onPrimary) }
+            content.secondaryKey?.let { PillButton(loc.format(it, "name" to name), scale, primary = false, onClick = actions.onSecondary) }
             if (content.id == ScreenId.C22) pet?.personality?.let {
                 Text(text = loc.format("fmt.eggCode", "code" to it.eggCode), color = PanguTokens.muted, fontSize = scale.sp(14f))
             }

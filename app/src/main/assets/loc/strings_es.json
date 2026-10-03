@@ -1,30 +1,6 @@
 {
  "entries": [
   {
-   "k": "ui.lang.en",
-   "v": "English"
-  },
-  {
-   "k": "ui.lang.zh",
-   "v": "简体中文"
-  },
-  {
-   "k": "ui.lang.es",
-   "v": "Español"
-  },
-  {
-   "k": "ui.langLabel.en",
-   "v": "EN"
-  },
-  {
-   "k": "ui.langLabel.zh",
-   "v": "中文"
-  },
-  {
-   "k": "ui.langLabel.es",
-   "v": "ES"
-  },
-  {
    "k": "ui.hints.crank",
    "v": "Gira la manivela"
   },
@@ -209,10 +185,6 @@
    "v": "Vibración"
   },
   {
-   "k": "ui.language",
-   "v": "Idioma"
-  },
-  {
    "k": "ui.input",
    "v": "Entrada"
   },
@@ -243,18 +215,6 @@
   {
    "k": "fmt.eggCode",
    "v": "Código {code}"
-  },
-  {
-   "k": "scr.C01.t",
-   "v": "¡Hola! Elige un idioma"
-  },
-  {
-   "k": "scr.C01.b",
-   "v": "Puedes cambiarlo luego en Ajustes."
-  },
-  {
-   "k": "scr.C01.p",
-   "v": "Continuar"
   },
   {
    "k": "scr.C02.t",

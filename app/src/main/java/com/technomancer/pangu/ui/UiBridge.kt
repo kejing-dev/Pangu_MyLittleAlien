@@ -2,6 +2,7 @@ package com.technomancer.pangu.ui
 
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.creation.PetLook
+import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenId
 import com.technomancer.pangu.logic.incubation.EggAction
 import com.technomancer.pangu.logic.incubation.WarmthBand
@@ -140,10 +141,19 @@ class UiBridge {
     val counters: StateFlow<Triple<Int, Int, Int>> = _counters
 
     private var nextPanelNanos = 0L
+    private var publishedScreen: ScreenId? = null
+    private var publishedFlow: FlowState? = null
     private var shownLook: PetLook? = null
 
     fun publishIfChanged(logic: PanguLogic) {
-        _screen.value = logic.screens.current
+        // A new screen or flow publishes the pet and egg at once, so a panel never shows before its
+        // data (the personality card used to open nameless and fill in a frame or more later).
+        val screen = logic.screens.current
+        val flow = logic.flow.flow
+        val changed = screen != publishedScreen || flow != publishedFlow
+        publishedScreen = screen
+        publishedFlow = flow
+        _screen.value = screen
         _paused.value = logic.isPaused
         val c = _counters.value
         if (c.first != logic.hatchedCount || c.second != logic.dormantCount || c.third != logic.wentHomeCount) {
@@ -175,9 +185,10 @@ class UiBridge {
             nextMicNanos = now + MIC_PERIOD_NANOS
             _micLevel.value = if (logic.micWanted) micRms else 0f
         }
-        if (now < nextPanelNanos) return
+        if (now < nextPanelNanos && !changed) return
         nextPanelNanos = now + 1_000_000_000L / PANEL_HZ
-        if (logic.isPetFlow) publishPet(logic)
+        // The hatchling is published while it hatches too, so the personality card is ready the moment it opens.
+        if (logic.isPetFlow || flow == FlowState.Hatching) publishPet(logic)
         if (logic.isEggFlow || logic.egg.sealSec >= 0f) publishEgg(logic)
     }
 

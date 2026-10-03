@@ -77,8 +77,6 @@ class PresentationSystem(
     private val padParts = listOf(HabitatFactory.PAD, HabitatFactory.NEST, HabitatFactory.LAMP).mapNotNull { habitat.findEntity(it)?.transform() }
     private val padPartScales = padParts.map { it.scaleVector }
     private val bulb = habitat.findEntity(HabitatFactory.LAMP_BULB)
-    private val ghostRing = habitat.findEntity(HabitatFactory.GHOST_RING)?.transform()
-    private var ghostShown: Boolean? = null
     private val pedestalTransform = scene.pedestal?.transform()
     private val pedestalScale = pedestalTransform?.scaleVector ?: Vector3.ONE
     private val tipTransforms = scene.pet?.tips?.map { it.transform() }.orEmpty()
@@ -112,6 +110,8 @@ class PresentationSystem(
     private var shownPad: PadPose? = null
     private var glowOn: Boolean? = null
     private var time = 0.0
+    private var frameDt = 0f
+    private var tubT = 0f
     private var lampLit: Boolean? = null
     private var shownLook: PetLook? = null
     private var shownSad = false
@@ -119,6 +119,7 @@ class PresentationSystem(
 
     fun apply(logic: PanguLogic, input: InputSnapshot, dt: Float) {
         time += dt
+        frameDt = dt
         val pad = logic.padPose
         if (pad != null && pad !== shownPad) {
             shownPad = pad
@@ -141,12 +142,7 @@ class PresentationSystem(
         val petShown = logic.isPetFlow
         val studio = logic.isStudio
         val sealing = logic.egg.sealSec >= 0f
-        applyStudio(studio || logic.screens.current == ScreenId.C01, studio, sealing, logic.egg.formScale)
-        val ghost = logic.screens.current == ScreenId.C01
-        if (ghost != ghostShown) {
-            ghostShown = ghost
-            writes.scale(ghostRing, if (ghost) Vector3.ONE else Vector3.ZERO)
-        }
+        applyStudio(studio, studio, sealing, logic.egg.formScale)
 
         val orbBase = when {
             petShown -> orbAbovePet(logic)
@@ -154,7 +150,7 @@ class PresentationSystem(
             else -> Vec3(0f, config.orbHeight, 0f)
         }
         val bob = config.orbBobAmplitude / habitatScale * sin(2.0 * PI * config.orbBobHz * time).toFloat()
-        val orbHidden = (petShown && logic.pet.stage() == Distress.WentHome) || studio || sealing || ghost ||
+        val orbHidden = (petShown && logic.pet.stage() == Distress.WentHome) || studio || sealing ||
             logic.flow.flow == FlowState.Hatching || logic.flow.flow == FlowState.Dormant
         writes.scale(orbTransform, if (orbHidden) Vector3.ZERO else Vector3.ONE)
         orbTransform?.setPosition(Vector3(orbBase.x, orbBase.y + bob, orbBase.z))
@@ -252,7 +248,12 @@ class PresentationSystem(
         tipMorpher?.update(pose.morphShape, pose.morphBlob)
     }
 
-    /** The hatchling rises out of the opened egg during the last part of the hatch. */
+    /**
+     * The hatchling climbs out of the opened egg without touching the shell: small enough to fit
+     * inside, it rises straight up through the opening until it is clear of the rim, then hops down
+     * onto the nest while growing to full size (with a little overshoot). The shells shrink away
+     * while it is in the air, so it never lands inside them.
+     */
     private fun applyHatchling(logic: PanguLogic) {
         val t = logic.egg.hatchSec
         if (t < PanguLogic.HATCH_RISE_SEC) {
@@ -260,9 +261,22 @@ class PresentationSystem(
             return
         }
         applyPet(logic, true)
-        val rise = ((t - PanguLogic.HATCH_RISE_SEC) / HATCH_RISE_TIME).coerceIn(0f, 1f)
         val body = logic.pet.body
-        petRoot?.setPosition(Vector3(body.position.x, HATCH_SINK * (1f - rise), body.position.z))
+        val e = t - PanguLogic.HATCH_RISE_SEC
+        val y: Float
+        val grow: Float
+        if (e < HATCH_CLIMB_SEC) {
+            val c = e / HATCH_CLIMB_SEC
+            val eased = c * c * (3f - 2f * c)
+            y = HATCH_START_Y + (HATCH_CLEAR_Y - HATCH_START_Y) * eased
+            grow = HATCH_INSIDE_SCALE
+        } else {
+            val u = ((e - HATCH_CLIMB_SEC) / HATCH_LAND_SEC).coerceIn(0f, 1f)
+            y = HATCH_CLEAR_Y * (1f - u * u) + HATCH_HOP * 4f * u * (1f - u)
+            grow = HATCH_INSIDE_SCALE + (1f - HATCH_INSIDE_SCALE) * easeOutBack(u, HATCH_OVERSHOOT)
+        }
+        petRoot?.setPosition(Vector3(body.position.x, y / habitatScale, body.position.z))
+        writes.scale(petRoot, Vector3(logic.pet.localScale(logic.nowMs) * body.sizeFactor * grow))
     }
 
     /** Freckles on the back and, for a shimmering pet, a tip that cycles through hues and drops a sparkle each second. */
@@ -306,15 +320,21 @@ class PresentationSystem(
         }
     }
 
+    /**
+     * The orb sits high enough above the egg or the pet that the pie it opens (centred on the orb)
+     * keeps its lowest option clear of the head, the egg and the pad.
+     */
+    private val orbClearance = (config.pieRadius + PIE_ITEM_BELOW_RING_PX * config.metresPerMockupPx + PIE_GAP) / habitatScale
+
     private fun orbAboveEgg(logic: PanguLogic): Vec3 {
         val p = logic.egg.eggPosition
-        return Vec3(p.x, p.y + (EggMesh.HEIGHT + ORB_ABOVE_EGG) / habitatScale, p.z)
+        return Vec3(p.x, p.y + EggMesh.HEIGHT / habitatScale + orbClearance, p.z)
     }
 
     private fun orbAbovePet(logic: PanguLogic): Vec3 {
         val body = logic.pet.body
         val height = AlienParts.MODEL_HEIGHT * logic.pet.localScale(logic.nowMs) * body.sizeFactor
-        return Vec3(body.position.x, body.hopHeight + height * (1f + ORB_GAP), body.position.z)
+        return Vec3(body.position.x, body.hopHeight + height + orbClearance, body.position.z)
     }
 
     private fun applyPet(logic: PanguLogic, shown: Boolean) {
@@ -363,8 +383,16 @@ class PresentationSystem(
             }
         }
 
-        val tubOut = shown && pet.tubOut
-        writes.scale(tubTransform, if (tubOut) Vector3.ONE else Vector3.ZERO)
+        // The tub pops up with a little overshoot when a bath starts and shrinks away when it ends.
+        val tubWanted = shown && pet.tubOut
+        tubT = (tubT + (if (tubWanted) frameDt else -frameDt) / TUB_POP_SEC).coerceIn(0f, 1f)
+        val tubScale = if (tubWanted) easeOutBack(tubT, TUB_OVERSHOOT) else tubT * tubT * (3f - 2f * tubT)
+        writes.scale(tubTransform, when {
+            tubT <= 0f -> Vector3.ZERO
+            tubT >= 1f -> Vector3.ONE
+            else -> Vector3(tubScale)
+        })
+        val tubOut = tubT > 0f
         if (tubOut) bubbleTransforms.forEachIndexed { i, t ->
             val phase = time * 1.3 + i * 1.7
             val r = 0.05f * ((i % 3) + 1) / 3f
@@ -420,9 +448,16 @@ class PresentationSystem(
     companion object {
         /** Height of the handle label above the pad top, metres. */
         private const val LABEL_HEIGHT = 0.06f
-        /** Gaps above the pet's head, as a fraction of its current height, so they stay close while it is small. */
-        private const val ORB_GAP = 0.3f
-        private const val ORB_ABOVE_EGG = 0.10f
+        /** Seconds the bath tub takes to pop up or shrink away, and the overshoot of its pop. */
+        private const val TUB_POP_SEC = 0.3f
+        private const val TUB_OVERSHOOT = 1.7f
+
+        /**
+         * How far the lowest pie option reaches below the ring, in mockup px: its 12 px drop, the
+         * lower half of its 62 px bubble and the 32 px label under it (see PieMenu). Plus a gap in metres.
+         */
+        private const val PIE_ITEM_BELOW_RING_PX = 75f
+        private const val PIE_GAP = 0.03f
 
         private const val SHIMMER_SEC = 12.0
         private const val SAD_DESATURATION = 0.4f
@@ -452,9 +487,24 @@ class PresentationSystem(
             return android.graphics.Color.HSVToColor(hsv) and 0xFFFFFF
         }
 
-        /** The hatchling starts this far below the pad inside the egg (pad-local metres) and rises over [HATCH_RISE_TIME] seconds. */
-        private const val HATCH_SINK = -0.05f
-        private const val HATCH_RISE_TIME = 1.2f
+        /**
+         * The hatchling's way out (metres): it starts at [HATCH_INSIDE_SCALE] of its size low in the
+         * egg, climbs to [HATCH_CLEAR_Y] (above the 11 cm shell) over [HATCH_CLIMB_SEC], then hops down
+         * onto the nest over [HATCH_LAND_SEC], arcing [HATCH_HOP] higher and growing with overshoot.
+         */
+        private const val HATCH_INSIDE_SCALE = 0.28f
+        private const val HATCH_START_Y = 0.02f
+        private const val HATCH_CLEAR_Y = 0.12f
+        private const val HATCH_CLIMB_SEC = 0.4f
+        private const val HATCH_LAND_SEC = 0.7f
+        private const val HATCH_HOP = 0.03f
+        private const val HATCH_OVERSHOOT = 1.6f
+
+        /** Ease-out with overshoot: 0 at t = 0, 1 at t = 1, peaking past 1 in between. */
+        private fun easeOutBack(t: Float, c: Float): Float {
+            val u = t - 1f
+            return 1f + (c + 1f) * u * u * u + c * u * u
+        }
         private const val RING_GAP = 0.12f
         private const val BEAM_GAP = 1.2f
         private val TRAY_SCALE = Vector3(1f, 1f, 0.6f)

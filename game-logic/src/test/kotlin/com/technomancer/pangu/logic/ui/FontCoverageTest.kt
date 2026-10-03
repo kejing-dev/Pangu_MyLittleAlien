@@ -68,11 +68,8 @@ class FontCoverageTest {
         for (lang in Language.entries) {
             val table = LocTable.parse(File("../app/src/main/assets/loc/strings_${lang.code}.json").readText(Charsets.UTF_8))
             val fonts = covered(*(if (lang == Language.Zh) sc else latin).toTypedArray())
-            // Each language's own name is drawn in that language's font (the app does the same).
-            val scFonts = covered(*sc.toTypedArray())
             val missing = table.keys.flatMap { k ->
-                val own = if (k == "ui.lang.zh" || k == "ui.langLabel.zh") scFonts else fonts
-                table[k]!!.codePoints().toArray().filter { it > 0x20 && it !in own }
+                table[k]!!.codePoints().toArray().filter { it > 0x20 && it !in fonts }
             }.toSet()
             assertTrue(missing.isEmpty(), "${lang.code} missing: ${missing.joinToString("") { Character.toChars(it).concatToString() }}")
         }

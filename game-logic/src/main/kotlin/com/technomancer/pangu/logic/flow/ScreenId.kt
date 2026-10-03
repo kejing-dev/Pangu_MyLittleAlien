@@ -1,6 +1,9 @@
 package com.technomancer.pangu.logic.flow
 
-/** Every screen of the game, C01 to C37. */
+/**
+ * Every screen of the game, numbered as in the mockup. C01 was the language picker; the app now
+ * follows the device language, so C01 has no panel and is only kept so the numbers still match.
+ */
 enum class ScreenId {
     C01, C02, C03, C04, C05, C06, C07, C08, C09, C10,
     C11, C12, C13, C14, C15, C16, C17, C18, C19, C20,

@@ -112,8 +112,10 @@ class PanguLogic(
     private val calculator = PersonalityCalculator(personalityConfig)
     private var pieIdleSec = 0f
 
-    /** Settings: language, volume 0..100, sound and haptics. The app applies them each frame. */
+    /** The language of the device, set by the app at launch and whenever it resumes. */
     var language: Language = Language.En
+
+    /** Settings: volume 0..100, sound and haptics. The app applies them each frame. */
     var volume: Int = 70
     var soundOn: Boolean = true
     var hapticsOn: Boolean = true
@@ -347,12 +349,6 @@ class PanguLogic(
                 haptic = HapticCue.UiPress
                 sounds += Sfx.UiTick
                 screens.openSettings()
-            }
-            InteractionType.UiLanguage -> {
-                Language.entries.getOrNull(e.target)?.let { language = it }
-                haptic = HapticCue.UiPress
-                sounds += Sfx.UiTick
-                saveRequested = true
             }
             InteractionType.UiVolume -> {
                 volume = e.target.coerceIn(0, 100)
@@ -607,6 +603,7 @@ class PanguLogic(
     private fun choose(action: PetAction?) {
         haptic = HapticCue.UiPress
         sounds += Sfx.UiTick
+        action?.let { pet.interruptFor(it) }
         when (action) {
             PetAction.Eat -> {
                 pet.showTray(true)
@@ -849,6 +846,7 @@ class PanguLogic(
 
     override fun hatchFinished() {
         pet.body.holdStill = false
+        pet.body.settleAfterHatch()
         hatchedCount++
         flow.hatched()
         sounds += Sfx.Happy

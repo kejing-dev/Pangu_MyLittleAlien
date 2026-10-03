@@ -13,6 +13,8 @@ import com.technomancer.pangu.logic.input.InteractionType
 import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
+import com.technomancer.pangu.logic.pet.PetAction
+import com.technomancer.pangu.logic.pet.PetActivity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -198,5 +200,17 @@ class PanguLogicTest {
         step(0.1f)
         assertEquals(ScreenId.C16, logic.screens.current)
         assertEquals(EggAction.Listen, logic.cappedAction)
+    }
+
+    @Test
+    fun tubLeavesWhenAnotherActionStarts() {
+        val logic = PanguLogic()
+        val pet = logic.pet
+        pet.startClean()
+        assertTrue(pet.tubOut)
+        pet.interruptFor(PetAction.Cuddle)
+        pet.actions.startCuddle()
+        assertFalse(pet.tubOut)
+        assertEquals(PetActivity.Cuddling, pet.actions.activity)
     }
 }

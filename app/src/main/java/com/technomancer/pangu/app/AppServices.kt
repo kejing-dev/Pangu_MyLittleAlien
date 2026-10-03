@@ -1,9 +1,16 @@
 package com.technomancer.pangu.app
 
+import android.content.BroadcastReceiver
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.res.AssetManager
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.technomancer.pangu.audio.MicService
 import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.config.ConfigLoader
@@ -37,7 +44,6 @@ import com.technomancer.pangu.logic.sim.CatchUp
 import com.technomancer.pangu.logic.time.IClock
 import com.technomancer.pangu.logic.time.XorShift32
 import com.technomancer.pangu.ui.UiBridge
-import java.util.Locale
 
 /** Build-time facts the frame loop needs without touching Android APIs every frame. */
 data class DebugFlags(val debuggable: Boolean, val timeScale: Float)
@@ -66,12 +72,8 @@ object AppServices {
         val placement = PadPlacement(placementConfig)
         // Saves from before creation existed have a hatched pet but no flow yet.
         val flow = if (save.flow == FlowState.Onboarding && save.pet.hatchUtcMs > 0L) FlowState.Pet else save.flow
-        // First launch picks a language (C01); after that a missing pad is placed again (C02).
-        val startScreen = when {
-            save.padPose.has -> FlowMachine.resumeScreen(flow, save.screen)
-            save.language.isEmpty() -> ScreenId.C01
-            else -> ScreenId.C02
-        }
+        // Without a placed pad (first launch, or a save without one) the habitat is placed first.
+        val startScreen = if (save.padPose.has) FlowMachine.resumeScreen(flow, save.screen) else ScreenId.C02
         val logic = PanguLogic(
             placement = placement,
             startScreen = startScreen,
@@ -93,7 +95,9 @@ object AppServices {
         logic.flow.look = save.look
         logic.flow.lastLook = save.lastLook
         logic.micChoice = save.micChoice
-        logic.language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
+        logic.language = deviceLanguage(app)
+        Log.i("Pangu", "Device language: ${logic.language.code}")
+        followDeviceLanguage(app, logic)
         logic.volume = save.settings.volume
         logic.soundOn = save.settings.soundOn
         logic.hapticsOn = save.settings.hapticsOn
@@ -105,7 +109,7 @@ object AppServices {
         perf.timeCatchUp(awayHours) { restore(flow, logic, save, catchUp, clock, petConfig) }
 
 
-        val language = Language.fromCode(save.language) ?: Language.forLocaleTag(Locale.getDefault().toLanguageTag())
+        val language = logic.language
         val loc = LocService(loadTables(app.assets), language) { Log.w("Pangu", "Missing string $it") }
         val ui = UiBridge().apply { setLanguage(language) }
         val haptics = Haptics().apply { enabled = save.settings.hapticsOn }
@@ -113,7 +117,7 @@ object AppServices {
             volume = save.settings.volume / 100f
             soundOn = save.settings.soundOn
         }
-        val session = SessionController(logic, store, clock, ui, save, catchUp, petConfig.welcomeBackMinMinutes)
+        val session = SessionController(logic, store, clock, ui, save, catchUp, petConfig.welcomeBackMinMinutes) { deviceLanguage(app) }
 
         ServiceRegistry.register(DebugFlags(debuggable, if (debuggable) debugConfig.timeScale else 1f))
         ServiceRegistry.register(configs)
@@ -195,6 +199,41 @@ object AppServices {
         logic.catchUpEgg(catchUp, from, now, welcomeMinMinutes)
         logic.nowMs = now
         Log.i("Pangu", "Caught up the egg to ${logic.egg.condition}, warmth ${logic.egg.egg.warmth}")
+    }
+
+    /**
+     * The game's language for the device's first preferred locale (the system language setting of
+     * the headset or Emulator): English, Simplified Chinese or Spanish, falling back to English.
+     */
+    fun deviceLanguage(context: Context): Language {
+        // The system resources are the first to see a language change; the app's own can lag behind.
+        val system = Resources.getSystem().configuration.locales
+        val locales = if (!system.isEmpty) system else context.resources.configuration.locales
+        return Language.forLocaleTag(locales[0].toLanguageTag())
+    }
+
+    /**
+     * Keeps the game's language in step with the device while the app is running: the system tells
+     * the app about a new configuration and broadcasts the locale change, and either one switches
+     * the language at once.
+     */
+    private fun followDeviceLanguage(app: Context, logic: PanguLogic) {
+        fun apply(language: Language, source: String) {
+            if (language == logic.language) return
+            logic.language = language
+            Log.i("Pangu", "Device language changed to ${language.code} ($source)")
+        }
+        app.registerComponentCallbacks(object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                if (!newConfig.locales.isEmpty) apply(Language.forLocaleTag(newConfig.locales[0].toLanguageTag()), "configuration")
+            }
+
+            override fun onLowMemory() = Unit
+        })
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = apply(deviceLanguage(app), "broadcast")
+        }
+        ContextCompat.registerReceiver(app, receiver, IntentFilter(Intent.ACTION_LOCALE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     /**

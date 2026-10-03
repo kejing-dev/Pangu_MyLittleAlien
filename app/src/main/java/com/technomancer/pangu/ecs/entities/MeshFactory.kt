@@ -20,6 +20,9 @@ import com.technomancer.pangu.logic.art.MeshData
  * Turns :game-logic mesh arrays into SDK mesh resources and model entities.
  * Unlit materials are shared per colour and culling mode. Meshes that carry vertex colours
  * (the baked toon look) pass them to the SDK and use a white material so the colours show.
+ *
+ * The engine frees a resource once no model uses it, and models swap these cached materials and
+ * meshes in and out (tints, the lamp, egg shells), so every cached resource is made global.
  */
 class MeshFactory(private val perf: PerfProbe? = null) {
     private val materials = HashMap<Long, UnlitMaterial>()
@@ -36,6 +39,7 @@ class MeshFactory(private val perf: PerfProbe? = null) {
                 setApplyToneMapping(false)
                 if (cullFront) setCullingMode(MaterialCullingMode.FRONT)
                 if (doubleSided) setCullingMode(MaterialCullingMode.NONE)
+                toGlobal()
             }
         }
 
@@ -57,6 +61,7 @@ class MeshFactory(private val perf: PerfProbe? = null) {
         val (model, bounds) = toModel(data)
         val built = System.nanoTime()
         return MeshResource.createWithMeshModel(model, bounds, name).also {
+            it.toGlobal()
             perf?.meshTriangles(it, data.triangleCount)
             perf?.meshUploaded(name, data.vertexCount, (built - started) / 1e6, (System.nanoTime() - built) / 1e6)
         }

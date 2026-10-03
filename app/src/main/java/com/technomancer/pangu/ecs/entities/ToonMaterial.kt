@@ -62,6 +62,8 @@ class ToonMaterial private constructor(private val body: ShaderGraphMaterial, pr
                 setup(it, TIP_SHADE, TIP_GLOSS)
                 it.setCullingMode(MaterialCullingMode.NONE)
             }
+            body.toGlobal()
+            tip.toGlobal()
             Log.i("Pangu", "Using the PanguToon material for the alien")
             ToonMaterial(body, tip)
         } catch (e: Exception) {

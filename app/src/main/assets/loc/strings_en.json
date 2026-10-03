@@ -1,30 +1,6 @@
 {
  "entries": [
   {
-   "k": "ui.lang.en",
-   "v": "English"
-  },
-  {
-   "k": "ui.lang.zh",
-   "v": "简体中文"
-  },
-  {
-   "k": "ui.lang.es",
-   "v": "Español"
-  },
-  {
-   "k": "ui.langLabel.en",
-   "v": "EN"
-  },
-  {
-   "k": "ui.langLabel.zh",
-   "v": "中文"
-  },
-  {
-   "k": "ui.langLabel.es",
-   "v": "ES"
-  },
-  {
    "k": "ui.hints.crank",
    "v": "Wind the crank"
   },
@@ -209,10 +185,6 @@
    "v": "Haptics"
   },
   {
-   "k": "ui.language",
-   "v": "Language"
-  },
-  {
    "k": "ui.input",
    "v": "Input"
   },
@@ -243,18 +215,6 @@
   {
    "k": "fmt.eggCode",
    "v": "Egg code {code}"
-  },
-  {
-   "k": "scr.C01.t",
-   "v": "Hello! Pick a language"
-  },
-  {
-   "k": "scr.C01.b",
-   "v": "You can change this later in Settings."
-  },
-  {
-   "k": "scr.C01.p",
-   "v": "Continue"
   },
   {
    "k": "scr.C02.t",

@@ -17,9 +17,6 @@ import com.technomancer.pangu.logic.art.PrimitiveMeshes
 import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.math.Quat
 import com.technomancer.pangu.logic.math.Vec3
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * Gray-box habitat: pad, nest, lamp, care orb and the key light, all under one root whose origin is the
@@ -41,7 +38,6 @@ class HabitatFactory(private val meshes: MeshFactory) {
             "PH_LampStem" to PrimitiveMeshes.cylinder(0.0045f, 0.13f, segments = 12),
             LAMP_BULB to PrimitiveMeshes.sphere(0.024f, centerY = 0.13f + 0.02f),
             CARE_ORB to PrimitiveMeshes.sphere(ORB_RADIUS),
-            GHOST_DASH to PrimitiveMeshes.box(2f * PI.toFloat() * PAD_RADIUS / (2f * GHOST_DASHES), 0.003f, 0.006f),
             "PH_CareOrbRing" to PrimitiveMeshes.torus(ORB_RADIUS, 0.0012f, segments = 32, sides = 6),
         )
     }
@@ -64,7 +60,6 @@ class HabitatFactory(private val meshes: MeshFactory) {
         root.addChild(createLamp())
         root.addChild(createKeyLight())
         root.addChild(createCareOrb())
-        root.addChild(createGhostRing())
         return root
     }
 
@@ -109,22 +104,6 @@ class HabitatFactory(private val meshes: MeshFactory) {
         return orb
     }
 
-    /** A dashed outline of the pad shown before it exists (the language screen): 24 dashes around the rim. */
-    private fun createGhostRing(): Entity {
-        val ring = Entity().apply {
-            setName(GHOST_RING)
-            components[TransformComponent::class.java]?.setScaleVector(Vector3.ZERO)
-        }
-        for (i in 0 until GHOST_DASHES) {
-            val a = 2f * PI.toFloat() * i / GHOST_DASHES
-            val dash = part(GHOST_DASH, INK, Vector3(PAD_RADIUS * sin(a), 0f, PAD_RADIUS * cos(a)))
-            // Each dash runs along the rim (its long side is local X).
-            dash.components[TransformComponent::class.java]?.setQuaternion(Quat.fromYaw(a + PI.toFloat() / 2f).toSdk())
-            ring.addChild(dash)
-        }
-        return ring
-    }
-
     private fun makeInteractive(entity: Entity, targetId: Int, radius: Float) {
         entity.components.set(InteractableComponent())
         entity.components.set(CollisionComponent(listOf(ShapeResource.createSphere(radius)), PhysicsMaterialResource()))
@@ -151,9 +130,6 @@ class HabitatFactory(private val meshes: MeshFactory) {
         const val LAMP = "PH_Lamp"
         const val LAMP_BULB = "PH_LampBulb"
         const val KEY_LIGHT = "PH_KeyLight"
-        const val GHOST_RING = "PH_GhostRing"
-        private const val GHOST_DASH = "PH_GhostDash"
-        private const val GHOST_DASHES = 24
 
         const val PAD_RADIUS = 0.25f
         const val PAD_HEIGHT = 0.03f

@@ -40,7 +40,13 @@ object AudioCatalog {
             Note(Wave.Sine, listOf(70f), 0.06f, 0.9f),
             Note(Wave.Sine, listOf(70f), 0.06f, 0.75f, startSec = 0.16f),
         ),
-        Sfx.CrackTap to listOf(Note(Wave.Square, listOf(1800f), 0.025f, 0.3f)),
+        // A shell crack: a sharp snap, a short crunch and a low knock from inside the egg.
+        Sfx.CrackTap to listOf(
+            Note(Wave.Noise, listOf(0f), 0.035f, 0.75f),
+            Note(Wave.Noise, listOf(0f), 0.09f, 0.4f, startSec = 0.03f),
+            Note(Wave.Noise, listOf(0f), 0.05f, 0.3f, startSec = 0.11f),
+            Note(Wave.Triangle, listOf(420f, 260f), 0.09f, 0.55f),
+        ),
         Sfx.Fanfare to listOf(784f, 1046.5f, 1318.5f, 1568f, 2093f).mapIndexed { i, f ->
             Note(Wave.Triangle, listOf(f), if (i == 4) 0.45f else 0.12f, 0.4f, startSec = i * 0.13f)
         },

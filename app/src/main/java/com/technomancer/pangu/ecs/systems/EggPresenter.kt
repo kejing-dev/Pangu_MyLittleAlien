@@ -51,6 +51,8 @@ class EggPresenter(
     private val sparkT = rig.sparkles.mapNotNull { it.transform() }
     private val blanketT = props.blanket.transform()
     private val blanketScale = props.blanket.transform()?.scaleVector ?: Vector3.ONE
+    private var clearT = 0f
+    private var wasTucked = false
     private val drapeT = props.drape.transform()
     private val beadT = props.beads.mapNotNull { it.transform() }
     private val beadColors = IntArray(props.beads.size) { -1 }
@@ -134,7 +136,10 @@ class EggPresenter(
         rootT?.apply {
             setPosition(world.eggPosition.toSdk())
             setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), roll).toSdk())
-            writes.scale(this, if (world.formScale >= 1f) invVector else Vector3(world.formScale * inv))
+            // Once the hatchling has hopped out, the empty shells shrink away instead of vanishing.
+            val gone = if (hatching) ((world.hatchSec - SHELL_SHRINK_START) / SHELL_SHRINK_SEC).coerceIn(0f, 1f) else 0f
+            val keep = (1f - gone * gone * (3f - 2f * gone)) * world.formScale.coerceAtMost(1f)
+            writes.scale(this, if (keep >= 1f) invVector else Vector3(keep * inv))
         }
 
         frostT.forEachIndexed { i, t -> writes.scale(t, if (condition == EggCondition.Chilly) frostScale[i] else Vector3.ZERO) }
@@ -168,18 +173,22 @@ class EggPresenter(
         val seamOn = condition == EggCondition.Dormant || (hatching && hatch >= PanguLogic.HATCH_SEAM_SEC)
         writes.scale(seamT, if (seamOn) Vector3.ONE else Vector3.ZERO)
 
-        // The top cap lifts 5 cm and tips 22° as it opens.
+        // The top cap pops up and tips off to the side, so the opening is clear before the hatchling climbs out.
         val lift = if (hatching) ((hatch - PanguLogic.HATCH_LIFT_SEC) / (PanguLogic.HATCH_RISE_SEC - PanguLogic.HATCH_LIFT_SEC)).coerceIn(0f, 1f) else 0f
         val e = lift * lift * (3f - 2f * lift)
         topPivotT?.apply {
-            setPosition(Vector3(0f, seamY + 0.05f * e, 0f))
-            setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), -22f * DEG * e).toSdk())
+            setPosition(Vector3(CAP_SIDE * e, seamY + CAP_LIFT * 4f * e * (1f - e) + CAP_DROP * e, 0f))
+            setQuaternion(Quat.fromAxisAngle(Vec3(0f, 0f, 1f), -CAP_TIP_DEG * DEG * e).toSdk())
         }
 
         updateSparkles(hatching, hatch, tip)
         updateMotes(condition == EggCondition.Dormant)
-        updateBlanket(logic, flow)
-        updateMusicBox(logic)
+        // Once the egg is ready to hatch, everything on or beside it (blanket, music box) shrinks away.
+        val clear = hatching || condition == EggCondition.Ready
+        clearT = (clearT + (if (clear) dt else -dt) / PROPS_AWAY_SEC).coerceIn(0f, 1f)
+        val keep = 1f - clearT * clearT * (3f - 2f * clearT)
+        updateBlanket(logic, flow, keep)
+        updateMusicBox(logic, keep)
         updateBeads(logic, condition, head, hatching || sealing || flow != FlowState.Incubation)
     }
 
@@ -218,31 +227,34 @@ class EggPresenter(
         }
     }
 
-    private fun updateBlanket(logic: PanguLogic, flow: FlowState) {
+    /** The folded blanket beside the nest, or draped over the egg while tucked; [keep] shrinks it away (1 = full size). */
+    private fun updateBlanket(logic: PanguLogic, flow: FlowState, keep: Float) {
         val world = logic.egg
-        val active = flow == FlowState.Incubation && world.sealSec < 0f
-        val tucked = active && world.isTucked(logic.nowMs)
+        // While hatching the drape stays (shrinking) on the egg it was tucked around.
+        val active = (flow == FlowState.Incubation || flow == FlowState.Hatching) && world.sealSec < 0f && keep > 0f
+        val tucked = active && (world.isTucked(logic.nowMs) || (flow == FlowState.Hatching && wasTucked))
+        if (flow == FlowState.Incubation) wasTucked = world.isTucked(logic.nowMs)
         if (tucked) {
             writes.scale(blanketT, Vector3.ZERO)
             drapeT?.apply {
                 setPosition(world.eggPosition.toSdk())
-                writes.scale(this, invVector)
+                writes.scale(this, if (keep >= 1f) invVector else Vector3(inv * keep))
             }
         } else {
             writes.scale(drapeT, Vector3.ZERO)
             blanketT?.apply {
-                writes.scale(this, if (active) blanketScale else Vector3.ZERO)
+                writes.scale(this, if (!active) Vector3.ZERO else if (keep >= 1f) blanketScale else Vector3(blanketScale.x * keep, blanketScale.y * keep, blanketScale.z * keep))
                 setPosition(world.blanketPosition.toSdk())
             }
         }
     }
 
     /** The music box appears beside the nest for the lullaby; its crank follows the hand. */
-    private fun updateMusicBox(logic: PanguLogic) {
+    private fun updateMusicBox(logic: PanguLogic, keep: Float) {
         val r = logic.egg.rituals
-        val shown = r.active == EggAction.Sing && r.singPath == MicChoice.MusicBox
+        val shown = r.active == EggAction.Sing && r.singPath == MicChoice.MusicBox && keep > 0f
         musicBoxT?.apply {
-            writes.scale(this, if (shown) invVector else Vector3.ZERO)
+            writes.scale(this, if (!shown) Vector3.ZERO else if (keep >= 1f) invVector else Vector3(inv * keep))
             setPosition(MUSIC_BOX_AT)
         }
         if (shown) {
@@ -280,6 +292,21 @@ class EggPresenter(
     private fun Entity.children(): List<Entity> = getChildren().toList()
 
     companion object {
+        /**
+         * Seconds into the hatch when the empty shells start shrinking, and how long they take: they
+         * are gone before the hatchling lands where the egg stood.
+         */
+        private const val SHELL_SHRINK_START = PanguLogic.HATCH_RISE_SEC + 0.4f
+        private const val SHELL_SHRINK_SEC = 0.45f
+
+        /** Seconds the blanket and music box take to shrink away when the egg is ready to hatch. */
+        private const val PROPS_AWAY_SEC = 0.4f
+
+        /** Where the opened cap ends up (metres): off to the side, after a small hop up, tipped right over. */
+        private const val CAP_SIDE = 0.075f
+        private const val CAP_LIFT = 0.04f
+        private const val CAP_DROP = -0.03f
+        private const val CAP_TIP_DEG = 75f
         private const val DEG = (PI / 180.0).toFloat()
         private const val DORMANT = 0xC9C3CF
         private const val DORMANT_EMBLEM = 0x8F8796

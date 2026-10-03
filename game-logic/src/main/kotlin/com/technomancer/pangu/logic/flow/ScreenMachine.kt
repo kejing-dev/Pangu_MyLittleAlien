@@ -72,10 +72,6 @@ class ScreenMachine(start: ScreenId, private val afterPlacement: ScreenId = Scre
     }
 
     fun primary(): ScreenEffect = when (current) {
-        ScreenId.C01 -> {
-            current = ScreenId.C02
-            ScreenEffect.None
-        }
         ScreenId.C02 -> {
             current = afterPlacement
             ScreenEffect.ConfirmPad

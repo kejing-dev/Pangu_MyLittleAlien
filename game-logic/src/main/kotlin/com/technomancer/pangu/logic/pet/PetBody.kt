@@ -4,6 +4,7 @@ import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.math.Vec3
 import com.technomancer.pangu.logic.time.IRandom
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -88,8 +89,18 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     /** Where the pet should go instead of wandering (the tub, the ball); null to wander. */
     var goal: Vec3? = null
 
-    /** While true the pet stays where it is (hatching out of the egg). */
+    /** While true the pet stays where it is (hatching out of the egg), only turning to face [facing]. */
     var holdStill = false
+
+    /**
+     * Just hatched: the pet stays on the nest for a few seconds looking at the player before it
+     * starts wandering, instead of hopping off the moment the hatch ends.
+     */
+    fun settleAfterHatch() {
+        target = position
+        goal = null
+        pauseLeft = HATCH_SETTLE_SEC
+    }
 
     /** Quirks that change the body's habits; set from the personality. */
     var blinkIntervalScale = 1f
@@ -231,7 +242,10 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     }
 
     private fun updateMotion(dt: Float, activity: PetActivity, facing: Vec3?) {
-        if (holdStill) return
+        if (holdStill) {
+            if (facing != null) yaw = turnToward(yaw, atan2(facing.x - position.x, facing.z - position.z), dt)
+            return
+        }
         if (updateHiccup(dt, activity)) return
         if (hopT >= 0f) {
             hopT += dt / config.hopSec
@@ -257,11 +271,15 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         val away = goal - position
         val dist = sqrt(away.x * away.x + away.z * away.z)
         if (!stay && dist > ARRIVE) {
-            // Hop toward the goal in short hops.
+            // Turn to face the goal first, then hop toward it in short hops.
+            val heading = atan2(away.x, away.z)
+            if (abs(angleTo(yaw, heading)) > HOP_AIM) {
+                yaw = turnToward(yaw, heading, dt)
+                return
+            }
             val step = minOf(dist, MAX_HOP)
             hopFrom = position
             hopTo = Vec3(position.x + away.x / dist * step, 0f, position.z + away.z / dist * step)
-            yaw = atan2(away.x, away.z)
             hopT = 0f
             return
         }
@@ -305,11 +323,17 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     }
 
     private fun turnToward(current: Float, goal: Float, dt: Float): Float {
+        val d = angleTo(current, goal)
+        val maxStep = TURN_SPEED * dt
+        return current + d.coerceIn(-maxStep, maxStep)
+    }
+
+    /** Shortest signed turn from [current] to [goal], in -π..π. */
+    private fun angleTo(current: Float, goal: Float): Float {
         var d = goal - current
         while (d > PI) d -= (2 * PI).toFloat()
         while (d < -PI) d += (2 * PI).toFloat()
-        val maxStep = TURN_SPEED * dt
-        return current + d.coerceIn(-maxStep, maxStep)
+        return d
     }
 
     /** Mouth position in pad-local metres for a pet of the given [scale] (metres per model unit). */
@@ -339,6 +363,12 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         private const val ARRIVE = 0.02f
         private const val MAX_HOP = 0.07f
         private const val TURN_SPEED = 3f
+
+        /** Hops start once the pet faces within this many radians of where it is going. */
+        private const val HOP_AIM = 0.35f
+
+        /** Seconds a new hatchling stays on the nest before it starts wandering. */
+        private const val HATCH_SETTLE_SEC = 3f
         private const val NAP_ROLL = -0.1f
         private const val BPM = 110f
         private const val SLUMP = -0.008f

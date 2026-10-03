@@ -101,6 +101,7 @@ class PropFactory(private val meshes: MeshFactory) {
             setBaseColor(rgb(BUTTER, 0.35f))
             setOpacity(0.35f)
             setApplyToneMapping(false)
+            toGlobal()
         }
     }
 
