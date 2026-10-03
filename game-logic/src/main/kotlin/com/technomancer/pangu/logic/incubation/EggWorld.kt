@@ -142,7 +142,7 @@ class EggWorld(
 
         sim.step(egg, dt / 3600f, nowMs)
         if (eggHeld) updateHold(dt, nowMs) else hold.reset()
-        rituals.update(dt, senses, eggPosition * displayScale + Vec3(0f, EggMesh.HEIGHT / 2f, 0f))
+        rituals.update(dt, senses, eggPosition * displayScale + Vec3(0f, EggMesh.HEIGHT / 2f * config.eggScale, 0f))
         updateEggFloat(dt)
         updateBlanket(dt, nowMs)
         updateWobble(dt)

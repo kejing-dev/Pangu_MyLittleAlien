@@ -29,7 +29,7 @@ import kotlin.math.sin
  * Writes the egg's state onto its entities each frame: where it is, its shell colours for the
  * look and condition, tilt and wobble, frost, glow, crack, the dormant seam and motes, the hatch
  * sequence (seam light, lifting top, sparkles), the blanket and the bead gauge on the nest rim.
- * Pad-local positions come from the logic; the egg itself is drawn at true size.
+ * Pad-local positions come from the logic; the egg is drawn at its model size times eggScale.
  */
 class EggPresenter(
     private val rig: EggRig,
@@ -37,6 +37,8 @@ class EggPresenter(
     private val factory: EggFactory,
     private val meshes: MeshFactory,
     private val habitatScale: Float,
+    /** Size of the egg as a multiple of its model. */
+    eggScale: Float = 1f,
 ) {
     private val rootT = rig.root.transform()
     private val topPivotT = rig.topPivot.transform()
@@ -66,6 +68,10 @@ class EggPresenter(
     private val inv = 1f / habitatScale
     private val writes = TransformWrites()
     private val invVector = Vector3(inv)
+
+    /** Scale of the egg rig in the habitat: metres to pad units, times the egg's size factor. */
+    private val eggInv = inv * eggScale
+    private val eggVector = Vector3(eggInv)
     private val seamY = EggMesh.SEAM * EggMesh.HEIGHT
 
     private var shellColor = -1
@@ -139,7 +145,7 @@ class EggPresenter(
             // Once the hatchling has hopped out, the empty shells shrink away instead of vanishing.
             val gone = if (hatching) ((world.hatchSec - SHELL_SHRINK_START) / SHELL_SHRINK_SEC).coerceIn(0f, 1f) else 0f
             val keep = (1f - gone * gone * (3f - 2f * gone)) * world.formScale.coerceAtMost(1f)
-            writes.scale(this, if (keep >= 1f) invVector else Vector3(keep * inv))
+            writes.scale(this, if (keep >= 1f) eggVector else Vector3(keep * eggInv))
         }
 
         frostT.forEachIndexed { i, t -> writes.scale(t, if (condition == EggCondition.Chilly) frostScale[i] else Vector3.ZERO) }
@@ -238,7 +244,7 @@ class EggPresenter(
             writes.scale(blanketT, Vector3.ZERO)
             drapeT?.apply {
                 setPosition(world.eggPosition.toSdk())
-                writes.scale(this, if (keep >= 1f) invVector else Vector3(inv * keep))
+                writes.scale(this, if (keep >= 1f) eggVector else Vector3(eggInv * keep))
             }
         } else {
             writes.scale(drapeT, Vector3.ZERO)

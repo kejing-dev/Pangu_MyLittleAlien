@@ -361,7 +361,7 @@ fun PanguStage() {
             props.beads.forEach { habitat.addChild(it) }
             habitat.addChild(props.pedestal)
         }
-        val eggPresenter = EggPresenter(eggRig, nest, eggFactory, meshes, placement.habitatScale)
+        val eggPresenter = EggPresenter(eggRig, nest, eggFactory, meshes, placement.habitatScale, logic.egg.config.eggScale)
 
         // Soft contact shadows: the pad receives, the pet casts.
         habitat.findEntity("PH_PadTop")?.components?.set(GroundShadowComponent(false, true))

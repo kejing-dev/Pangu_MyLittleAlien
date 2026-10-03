@@ -140,13 +140,14 @@ class Rituals(private val config: IncubationConfig, private val events: EggEvent
                 var best: Vec3? = null
                 var bestDistance = Float.MAX_VALUE
                 for (p in senses.pokes) {
-                    val d = shellDistance(p - eggCentre)
+                    // The shell maths is for the model-sized egg, so points are brought into its scale and the distance back out.
+                    val d = shellDistance((p - eggCentre) / config.eggScale) * config.eggScale
                     if (d < bestDistance) {
                         bestDistance = d
                         best = p
                     }
                 }
-                val local = best?.let { it - eggCentre }
+                val local = best?.let { (it - eggCentre) / config.eggScale }
                 val normal = local?.let { shellNormal(it) } ?: Vec3.UP
                 if (polish.update(best, normal, bestDistance, dt)) {
                     events.sound(Sfx.UiTick)

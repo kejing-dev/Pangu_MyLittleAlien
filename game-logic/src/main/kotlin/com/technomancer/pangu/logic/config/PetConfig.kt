@@ -37,7 +37,7 @@ data class PetConfig(
     /** Strokes only count on the top of the head, above this height in model units. */
     val strokeMinModelY: Float = 1.6f,
 
-    val adultHeight: Float = 0.25f,
+    val adultHeight: Float = 0.48f,
     val hatchGrowth: Float = 0.7f,
     val growthHours: Float = 72f,
 

@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 /** Egg warmth, care props, daily caps, hatching and neglect. Rates are per hour unless the name says otherwise. */
 @Serializable
 data class IncubationConfig(
+    /** Size of the egg on the pad, as a multiple of its 11 cm model. */
+    val eggScale: Float = 1.33f,
     val startWarmth: Float = 80f,
     val sealSec: Float = 3f,
     val warmthDecayPerHour: Float = 6f,

@@ -74,8 +74,13 @@ class PresentationSystem(
     private val habitatTransform = habitat.components[TransformComponent::class.java]
     private val handleGlow = habitat.findEntity(HabitatFactory.HANDLE_GLOW)?.transform()
     private val orbTransform = habitat.findEntity(HabitatFactory.CARE_ORB)?.transform()
-    private val padParts = listOf(HabitatFactory.PAD, HabitatFactory.NEST, HabitatFactory.LAMP).mapNotNull { habitat.findEntity(it)?.transform() }
+    private val padParts = listOf(HabitatFactory.PAD, HabitatFactory.NEST).mapNotNull { habitat.findEntity(it)?.transform() }
     private val padPartScales = padParts.map { it.scaleVector }
+    private val lampTransform = habitat.findEntity(HabitatFactory.LAMP)?.transform()
+    private val lampScale = lampTransform?.scaleVector ?: Vector3.ONE
+
+    /** How much of the heating lamp is showing, 0..1; negative until the first frame sets it. */
+    private var lampT = -1f
     private val bulb = habitat.findEntity(HabitatFactory.LAMP_BULB)
     private val pedestalTransform = scene.pedestal?.transform()
     private val pedestalScale = pedestalTransform?.scaleVector ?: Vector3.ONE
@@ -157,6 +162,7 @@ class PresentationSystem(
 
         applyLook(logic)
         applyLamp(logic)
+        applyLampStand(logic, studio)
         when {
             studio || sealing -> applyPreview(logic, if (sealing) 1f - logic.egg.formScale else 1f)
             logic.flow.flow == FlowState.Hatching -> applyHatchling(logic)
@@ -216,6 +222,21 @@ class PresentationSystem(
         tipTransforms.forEachIndexed { i, t -> writes.scale(t, if (i == look.shape) Vector3.ONE else Vector3.ZERO) }
     }
 
+    /**
+     * The heating lamp belongs to the egg: it stands on the pad while there is one and shrinks away
+     * once the pet has hatched (and comes back for the next egg). It is hidden with the pad in the studio.
+     */
+    private fun applyLampStand(logic: PanguLogic, studio: Boolean) {
+        val wanted = !logic.isPetFlow
+        lampT = if (lampT < 0f) (if (wanted) 1f else 0f) else (lampT + (if (wanted) frameDt else -frameDt) / LAMP_AWAY_SEC).coerceIn(0f, 1f)
+        val k = if (studio) 0f else lampT * lampT * (3f - 2f * lampT)
+        writes.scale(lampTransform, when {
+            k <= 0f -> Vector3.ZERO
+            k >= 1f -> lampScale
+            else -> Vector3(lampScale.x * k, lampScale.y * k, lampScale.z * k)
+        })
+    }
+
     private fun applyLamp(logic: PanguLogic) {
         val lit = logic.isEggFlow && logic.egg.egg.lampOn(logic.nowMs)
         if (lit == lampLit) return
@@ -262,21 +283,25 @@ class PresentationSystem(
         }
         applyPet(logic, true)
         val body = logic.pet.body
+        val full = logic.pet.localScale(logic.nowMs) * body.sizeFactor
+        // Small enough to fit inside the shell, whatever size the pet hatches at.
+        val eggScale = logic.egg.config.eggScale
+        val inside = (HATCH_INSIDE_HEIGHT * eggScale / (AlienParts.MODEL_HEIGHT * full * habitatScale)).coerceAtMost(1f)
         val e = t - PanguLogic.HATCH_RISE_SEC
         val y: Float
         val grow: Float
         if (e < HATCH_CLIMB_SEC) {
             val c = e / HATCH_CLIMB_SEC
             val eased = c * c * (3f - 2f * c)
-            y = HATCH_START_Y + (HATCH_CLEAR_Y - HATCH_START_Y) * eased
-            grow = HATCH_INSIDE_SCALE
+            y = (HATCH_START_Y + (HATCH_CLEAR_Y - HATCH_START_Y) * eased) * eggScale
+            grow = inside
         } else {
             val u = ((e - HATCH_CLIMB_SEC) / HATCH_LAND_SEC).coerceIn(0f, 1f)
-            y = HATCH_CLEAR_Y * (1f - u * u) + HATCH_HOP * 4f * u * (1f - u)
-            grow = HATCH_INSIDE_SCALE + (1f - HATCH_INSIDE_SCALE) * easeOutBack(u, HATCH_OVERSHOOT)
+            y = HATCH_CLEAR_Y * eggScale * (1f - u * u) + HATCH_HOP * 4f * u * (1f - u)
+            grow = inside + (1f - inside) * easeOutBack(u, HATCH_OVERSHOOT)
         }
         petRoot?.setPosition(Vector3(body.position.x, y / habitatScale, body.position.z))
-        writes.scale(petRoot, Vector3(logic.pet.localScale(logic.nowMs) * body.sizeFactor * grow))
+        writes.scale(petRoot, Vector3(full * grow))
     }
 
     /** Freckles on the back and, for a shimmering pet, a tip that cycles through hues and drops a sparkle each second. */
@@ -328,7 +353,7 @@ class PresentationSystem(
 
     private fun orbAboveEgg(logic: PanguLogic): Vec3 {
         val p = logic.egg.eggPosition
-        return Vec3(p.x, p.y + EggMesh.HEIGHT / habitatScale + orbClearance, p.z)
+        return Vec3(p.x, p.y + EggMesh.HEIGHT * logic.egg.config.eggScale / habitatScale + orbClearance, p.z)
     }
 
     private fun orbAbovePet(logic: PanguLogic): Vec3 {
@@ -448,6 +473,9 @@ class PresentationSystem(
     companion object {
         /** Height of the handle label above the pad top, metres. */
         private const val LABEL_HEIGHT = 0.06f
+        /** Seconds the heating lamp takes to shrink away after the hatch, or to come back for a new egg. */
+        private const val LAMP_AWAY_SEC = 0.6f
+
         /** Seconds the bath tub takes to pop up or shrink away, and the overshoot of its pop. */
         private const val TUB_POP_SEC = 0.3f
         private const val TUB_OVERSHOOT = 1.7f
@@ -488,11 +516,11 @@ class PresentationSystem(
         }
 
         /**
-         * The hatchling's way out (metres): it starts at [HATCH_INSIDE_SCALE] of its size low in the
+         * The hatchling's way out (metres, for the model-sized egg; scaled with the egg): it starts [HATCH_INSIDE_HEIGHT] tall low in the
          * egg, climbs to [HATCH_CLEAR_Y] (above the 11 cm shell) over [HATCH_CLIMB_SEC], then hops down
          * onto the nest over [HATCH_LAND_SEC], arcing [HATCH_HOP] higher and growing with overshoot.
          */
-        private const val HATCH_INSIDE_SCALE = 0.28f
+        private const val HATCH_INSIDE_HEIGHT = 0.05f
         private const val HATCH_START_Y = 0.02f
         private const val HATCH_CLEAR_Y = 0.12f
         private const val HATCH_CLIMB_SEC = 0.4f
