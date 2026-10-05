@@ -63,6 +63,7 @@ import com.technomancer.pangu.ui.eggPieItems
 import com.technomancer.pangu.ui.petPieItems
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.PropFactory
+import com.technomancer.pangu.dev.DevTools
 import com.technomancer.pangu.ecs.entities.TipMorpher
 import com.technomancer.pangu.ecs.entities.ToonMaterial
 import com.technomancer.pangu.ecs.systems.SceneEntities
@@ -294,6 +295,10 @@ fun PanguStage() {
                 }
                 }
             }
+            // The Dev Tools menu only exists in debug builds.
+            if (DevTools.AVAILABLE) {
+                AttachmentPanel(id = PANEL_DEV) { DevTools.Panel(scale) }
+            }
         },
     ) { content, attachments ->
         // Stage-space poses are converted through this root, so it goes into the scene first.
@@ -346,6 +351,7 @@ fun PanguStage() {
         val infoPanel = attachments.entity(PANEL_INFO)?.also { habitat.addChild(it) }
         val handleLabel = attachments.entity(PANEL_HANDLE)?.also { habitat.addChild(it) }
         val pie = attachments.entity(PANEL_PIE)?.also { habitat.addChild(it) }
+        val devPanel = if (DevTools.AVAILABLE) attachments.entity(PANEL_DEV)?.also { habitat.addChild(it) } else null
         val rig = if (alienLoaded) alienFactory.create().also { habitat.addChild(it.root) } else null
         val tray = propFactory.createTray().also { habitat.addChild(it) }
         val foods = List(PetWorld.FOOD_COUNT) { i -> propFactory.createFood(i).also { habitat.addChild(it) } }
@@ -386,7 +392,7 @@ fun PanguStage() {
         scene.presentation = PresentationSystem(
             root,
             habitat,
-            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing, nest.pedestal, eggPresenter),
+            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing, nest.pedestal, eggPresenter, devPanel),
             uiConfig,
             placement.habitatScale,
             meshes,
@@ -435,6 +441,7 @@ private const val PANEL_PIE = "panel_pie"
 private const val MAX_CRUMBS = 5
 private const val PANEL_TOAST = "panel_toast"
 private const val PANEL_PAUSE = "panel_pause"
+private const val PANEL_DEV = "panel_dev"
 private const val HEAD_WAIT_MS = 2000L
 private const val MIC_REQUEST_CODE = 7
 private const val MIC_ANSWER_WAIT_MS = 60_000L

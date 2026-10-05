@@ -46,6 +46,8 @@ class SceneEntities(
     val skyRing: Entity? = null,
     val pedestal: Entity? = null,
     val egg: EggPresenter? = null,
+    /** The Dev Tools menu's panel; debug builds only. */
+    val devPanel: Entity? = null,
 )
 
 /**
@@ -96,6 +98,7 @@ class PresentationSystem(
     private var frecklesOn: Boolean? = null
     private var shimmerStep = -1
     private val panelTransform = scene.infoPanel?.transform()
+    private val devPanelTransform = scene.devPanel?.transform()
     private val labelTransform = scene.handleLabel?.transform()
     private val pieTransform = scene.pie?.transform()
     private val trayTransform = scene.tray?.transform()
@@ -182,6 +185,7 @@ class PresentationSystem(
 
         if (pad != null) {
             billboard(panelTransform, panelOffset, head)
+            billboard(devPanelTransform, DEV_PANEL_OFFSET, head)
             if (placing) billboard(labelTransform, labelOffset, head)
             if (logic.screens.current == ScreenId.C24 || logic.screens.current == ScreenId.C08) {
                 billboard(pieTransform, Vector3(orbBase.x, orbBase.y, orbBase.z), head)
@@ -506,6 +510,9 @@ class PresentationSystem(
     companion object {
         /** Height of the handle label above the pad top, metres. */
         private const val LABEL_HEIGHT = 0.06f
+        /** Where the Dev Tools menu floats: left of the pad, opposite the info panel (pad-local metres). */
+        private val DEV_PANEL_OFFSET = Vector3(-0.5f, 0.3f, 0.05f)
+
         /** Seconds the nest ring takes to settle flat after the hatch, and its height then as a fraction of the raised ring. */
         private const val NEST_FLATTEN_SEC = 0.6f
         private const val NEST_FLAT_HEIGHT = 0.06f

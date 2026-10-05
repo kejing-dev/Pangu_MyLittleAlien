@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.technomancer.pangu.audio.MicService
 import com.technomancer.pangu.audio.SfxPlayer
 import com.technomancer.pangu.config.ConfigLoader
+import com.technomancer.pangu.dev.DevTools
 import com.technomancer.pangu.logic.PanguLogic
 import com.technomancer.pangu.logic.config.DebugConfig
 import com.technomancer.pangu.logic.config.InputConfig
@@ -45,8 +46,11 @@ import com.technomancer.pangu.logic.time.IClock
 import com.technomancer.pangu.logic.time.XorShift32
 import com.technomancer.pangu.ui.UiBridge
 
-/** Build-time facts the frame loop needs without touching Android APIs every frame. */
-data class DebugFlags(val debuggable: Boolean, val timeScale: Float)
+/**
+ * Build-time facts the frame loop needs without touching Android APIs every frame. [timeScale]
+ * multiplies simulated time; only debug builds ever set it above 1 (debug_config.json, Dev Tools).
+ */
+class DebugFlags(val debuggable: Boolean, var timeScale: Float)
 
 /** Creates the app-wide services once and registers them in [ServiceRegistry]. */
 object AppServices {
@@ -102,6 +106,8 @@ object AppServices {
         logic.soundOn = save.settings.soundOn
         logic.hapticsOn = save.settings.hapticsOn
         logic.debugAssist = debuggable && isEmulator()
+        // Debug builds switch on their testing shortcuts here; the release DevTools does nothing.
+        DevTools.install(logic)
         val catchUp = CatchUp(simConfig, NeedsSim(petConfig), clock)
         val perf = PerfProbe(debuggable)
         perf.milestone("services starting")

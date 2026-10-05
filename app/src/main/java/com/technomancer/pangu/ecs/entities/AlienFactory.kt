@@ -44,7 +44,7 @@ class AlienRig(
 
 /**
  * Builds the alien from alien_baby.glb: one mesh per part with a baked toon look, ink outline
- * hulls on the body and tips, and a small rig so body, eyes and antenna can move separately.
+ * hulls on the body, antenna stalk and tips, and a small rig so body, eyes and antenna can move separately.
  * Rig: PetRoot → PetBody → (parts, EyesPivot → eyes, AntennaPivot → stalk and six tips).
  *
  * The body, stalk and tips are baked in white shading only and take their colour from their
@@ -75,6 +75,7 @@ class AlienFactory(private val meshes: MeshFactory) {
         add(MOUTH, parts[AlienParts.MOUTH])
         add(BLUSH, parts[AlienParts.BLUSH])
         add(BODY_OUTLINE, parts[AlienParts.BODY]?.let { OutlineHull.build(it, 0.012f) })
+        add(STALK_OUTLINE, parts[AlienParts.STALK]?.let { OutlineHull.build(it, TIP_OUTLINE) })
         add(FRECKLE, PrimitiveMeshes.disc(FRECKLE_RADIUS, segments = 16))
         add(MOTE, PrimitiveMeshes.octahedron(0.06f))
         meshes.preload(out.toList())
@@ -109,6 +110,8 @@ class AlienFactory(private val meshes: MeshFactory) {
             antenna.addChild(it)
             bodyModels += it
         }
+        // The stalk gets the same ink outline as the tips, so the whole antenna reads as one drawn shape.
+        part(STALK_OUTLINE, INK, -AlienParts.ANTENNA_BASE)?.let { antenna.addChild(it) }
         val tips = ArrayList<Entity>()
         val tipModels = ArrayList<Entity>()
         val tipOutlines = ArrayList<Entity?>()
@@ -171,6 +174,8 @@ class AlienFactory(private val meshes: MeshFactory) {
         private const val BODY = "Pet_Body"
         private const val BODY_OUTLINE = "Pet_BodyOutline"
         private const val STALK = "Pet_Stalk"
+        private const val STALK_OUTLINE = "Pet_StalkOutline"
+
         private const val EYES = "Pet_Eyes"
         private const val HIGHLIGHTS = "Pet_Highlights"
         private const val MOUTH = "Pet_Mouth"
@@ -195,7 +200,7 @@ class AlienFactory(private val meshes: MeshFactory) {
         /** Toon settings the tips are baked with (white, tinted by their material). */
         val TIP_TOON = ToonParams(WHITE_RGB, TIP_SHADE, 0.25f)
 
-        /** Width of the tips' ink outline, model units. */
+        /** Width of the ink outline on the tips and the stalk, model units, so the whole antenna has one line weight. */
         const val TIP_OUTLINE = 0.008f
         private val EYE_BASE = floatArrayOf(0.13f, 0.12f, 0.15f)
         private val EYE_SHADE = floatArrayOf(0.7f, 0.7f, 0.75f)

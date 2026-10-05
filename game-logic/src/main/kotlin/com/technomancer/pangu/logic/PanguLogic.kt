@@ -6,6 +6,7 @@ import com.technomancer.pangu.logic.config.LookConfig
 import com.technomancer.pangu.logic.config.PersonalityConfig
 import com.technomancer.pangu.logic.incubation.MicChoice
 import com.technomancer.pangu.logic.personality.PersonalityCalculator
+import com.technomancer.pangu.logic.personality.SparkValue
 import com.technomancer.pangu.logic.config.PetConfig
 import com.technomancer.pangu.logic.config.UiConfig
 import com.technomancer.pangu.logic.creation.KeeperIds
@@ -13,6 +14,7 @@ import com.technomancer.pangu.logic.creation.LookCatalog
 import com.technomancer.pangu.logic.creation.NameWheels
 import com.technomancer.pangu.logic.creation.PetLook
 import com.technomancer.pangu.logic.creation.PreviewPose
+import com.technomancer.pangu.logic.dev.DevCommand
 import com.technomancer.pangu.logic.flow.FlowMachine
 import com.technomancer.pangu.logic.flow.FlowState
 import com.technomancer.pangu.logic.flow.ScreenEffect
@@ -714,6 +716,121 @@ class PanguLogic(
     /** Debug builds running in the Emulator show "Complete step" on ritual panels. */
     var debugAssist = false
 
+    /** Debug builds switch this on for their Dev Tools menu; while it is off [dev] does nothing. */
+    var devTools = false
+
+    /**
+     * Runs a testing shortcut. Ignored unless [devTools] is on, and until the habitat is placed
+     * (every stage needs the pad).
+     */
+    fun dev(command: DevCommand) {
+        if (!devTools || padPose == null || screens.isPlacingPad) return
+        screens.closeSettings()
+        when (command) {
+            DevCommand.Customize -> {
+                devLeaveStage()
+                flow.startNewEgg()
+            }
+            DevCommand.RestartEgg -> devNewEgg()
+            DevCommand.EggReady -> devEggReady()
+            DevCommand.HatchNow -> {
+                devEggReady()
+                startHatch()
+            }
+            DevCommand.Hatched -> devHatched()
+            DevCommand.EggCold -> devEgg { egg.egg.warmth = egg.config.chillyThreshold * 0.5f }
+            DevCommand.EggWarm -> devEgg {
+                egg.egg.warmth = 100f
+                egg.egg.coldHours = 0f
+            }
+            DevCommand.EggDormant -> {
+                devEgg { egg.egg.dormant = true }
+                dormantCount++
+                flow.goDormant()
+            }
+            DevCommand.ClearRitualCaps -> if (flow.flow == FlowState.Incubation) {
+                egg.ledger.completionsToday.fill(0)
+                egg.ledger.lastCompletionMs.fill(0L)
+                egg.ledger.blanketTucksToday = 0
+            }
+            DevCommand.FillNeeds -> devNeeds(100f)
+            DevCommand.DrainNeeds -> devNeeds(8f)
+            DevCommand.PetMopey -> devDistress(pet.config.mopeyHours)
+            DevCommand.PetHomesick -> devDistress(pet.config.homesickHours)
+            DevCommand.PetWentHome -> devDistress(pet.config.departHours)
+            DevCommand.PetCheerUp -> if (isPetFlow) {
+                pet.distress.hours = 0f
+                pet.syncStage()
+                if (flow.flow == FlowState.WentHome) flow.flow = FlowState.Pet
+                screens.show(ScreenId.C23)
+            }
+            DevCommand.ShowPersonality -> if (flow.flow == FlowState.Pet) screens.show(ScreenId.C22)
+        }
+        saveRequested = true
+    }
+
+    /** Puts away whatever the current stage has out, before a shortcut jumps to another stage. */
+    private fun devLeaveStage() {
+        pet.endActivity()
+        pet.body.holdStill = false
+        egg.rituals.stop()
+        if (egg.eggHeld) egg.releaseEgg()
+    }
+
+    /** A fresh egg with the current look, already in the nest. */
+    private fun devNewEgg() {
+        devLeaveStage()
+        flow.lastLook = flow.look
+        flow.flow = FlowState.Incubation
+        egg.setEgg(nowMs, SparkValue.roll(nowMs, keeperIds))
+        screens.show(ScreenId.C07)
+    }
+
+    /** Changes the egg (a fresh one if none is incubating) and shows the screen for its new condition. */
+    private fun devEgg(change: () -> Unit) {
+        if (flow.flow != FlowState.Incubation) devNewEgg()
+        egg.rituals.stop()
+        change()
+        egg.syncCondition(nowMs)
+        screens.show(eggHomeScreen())
+    }
+
+    /** The egg has had all its warm hours; an egg with no care history gets a mixed one so its pet has a personality to show. */
+    private fun devEggReady() = devEgg {
+        val e = egg.egg
+        e.hatchProgressHours = egg.config.hatchWarmHours
+        e.warmth = 100f
+        e.coldHours = 0f
+        e.crackTaps = 0
+        val imprint = egg.ledger.imprint
+        if (imprint.all { it == 0 }) DEV_IMPRINT.forEachIndexed { i, v -> if (i < imprint.size) imprint[i] = v }
+    }
+
+    /** A freshly hatched pet on the pad, as if the hatch had just finished, with its needs at their starting values. */
+    private fun devHatched() {
+        devEggReady()
+        flow.flow = FlowState.Pet
+        pet.hatchNew(nowMs)
+        pet.applyPersonality(calculator.compute(egg.egg.sparkValue, keeperIds, egg.ledger.imprint))
+        pet.body.settleAfterHatch()
+        hatchedCount++
+        screens.show(ScreenId.C23)
+    }
+
+    private fun devNeeds(value: Float) {
+        if (flow.flow != FlowState.Pet) return
+        pet.needs.values.fill(value)
+    }
+
+    /** Sets how long the pet has been unhappy, which decides whether it is mopey, homesick or leaving. */
+    private fun devDistress(hours: Float) {
+        if (flow.flow != FlowState.Pet) return
+        pet.endActivity()
+        pet.distress.hours = hours
+        pet.syncStage()
+        announceState()
+    }
+
     /** The egg's resting screen for its condition. */
     fun eggHomeScreen(): ScreenId = when (egg.condition) {
         EggCondition.Dormant -> ScreenId.C19
@@ -888,5 +1005,8 @@ class PanguLogic(
         const val HATCH_LIFT_SEC = 4.5f
         const val HATCH_RISE_SEC = 6f
         private const val HATCH_BOING = 4f
+
+        /** Care history a dev-made egg gets when it has none: a few points on each trait. */
+        private val DEV_IMPRINT = intArrayOf(6, 3, 2, 8, 4)
     }
 }
