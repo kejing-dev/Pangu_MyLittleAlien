@@ -74,8 +74,12 @@ class PresentationSystem(
     private val habitatTransform = habitat.components[TransformComponent::class.java]
     private val handleGlow = habitat.findEntity(HabitatFactory.HANDLE_GLOW)?.transform()
     private val orbTransform = habitat.findEntity(HabitatFactory.CARE_ORB)?.transform()
-    private val padParts = listOf(HabitatFactory.PAD, HabitatFactory.NEST).mapNotNull { habitat.findEntity(it)?.transform() }
+    private val padParts = listOf(HabitatFactory.PAD).mapNotNull { habitat.findEntity(it)?.transform() }
     private val padPartScales = padParts.map { it.scaleVector }
+    private val nestTransform = habitat.findEntity(HabitatFactory.NEST)?.transform()
+
+    /** How flat the nest ring is, 0 (a raised ring for the egg) to 1 (a flat mark for the pet); negative until the first frame sets it. */
+    private var nestFlatT = -1f
     private val lampTransform = habitat.findEntity(HabitatFactory.LAMP)?.transform()
     private val lampScale = lampTransform?.scaleVector ?: Vector3.ONE
 
@@ -163,6 +167,7 @@ class PresentationSystem(
         applyLook(logic)
         applyLamp(logic)
         applyLampStand(logic, studio)
+        applyNest(logic, studio)
         when {
             studio || sealing -> applyPreview(logic, if (sealing) 1f - logic.egg.formScale else 1f)
             logic.flow.flow == FlowState.Hatching -> applyHatchling(logic)
@@ -236,6 +241,33 @@ class PresentationSystem(
             else -> Vector3(lampScale.x * k, lampScale.y * k, lampScale.z * k)
         })
     }
+
+    /**
+     * The nest is a raised ring that holds the egg. A pet standing on it would have its feet inside
+     * the ring, which then shows in front of them, so once the pet is out the ring settles into a
+     * flat mark on the pad that the pet can walk across. It rises again for the next egg.
+     */
+    private fun applyNest(logic: PanguLogic, studio: Boolean) {
+        val flat = logic.isPetFlow
+        nestFlatT = if (nestFlatT < 0f) (if (flat) 1f else 0f) else (nestFlatT + (if (flat) frameDt else -frameDt) / NEST_FLATTEN_SEC).coerceIn(0f, 1f)
+        val nest = nestTransform ?: return
+        if (studio) {
+            writes.scale(nest, Vector3.ZERO)
+            return
+        }
+        val e = nestFlatT * nestFlatT * (3f - 2f * nestFlatT)
+        val height = 1f + (NEST_FLAT_HEIGHT - 1f) * e
+        if (height != shownNestHeight) {
+            shownNestHeight = height
+            // The ring's centre sits one tube radius up; it comes down with the ring so the bottom stays on the pad.
+            nest.setPosition(Vector3(0f, HabitatFactory.NEST_TUBE_RADIUS * height, 0f))
+            nestHeightScale = Vector3(1f, height, 1f)
+        }
+        writes.scale(nest, nestHeightScale)
+    }
+
+    private var shownNestHeight = -1f
+    private var nestHeightScale = Vector3.ONE
 
     private fun applyLamp(logic: PanguLogic) {
         val lit = logic.isEggFlow && logic.egg.egg.lampOn(logic.nowMs)
@@ -372,11 +404,12 @@ class PresentationSystem(
         val s = logic.pet.localScale(logic.nowMs) * body.sizeFactor
         val inTub = logic.pet.actions.activity == PetActivity.Cleaning && logic.pet.tubOut
         val bathBob = if (inTub) 0.035f + 0.004f * sin(4.0 * time).toFloat() else 0f
-        rootT.setPosition(Vector3(body.position.x, body.position.y + body.hopHeight + body.lift / habitatScale + bathBob, body.position.z))
+        val sway = body.danceOffset
+        rootT.setPosition(Vector3(body.position.x + sway.x, body.position.y + body.hopHeight + body.lift / habitatScale + bathBob, body.position.z + sway.z))
         rootT.setQuaternion(Quat.fromYaw(body.yaw + body.spin).toSdk())
         writes.scale(rootT, Vector3(s))
         petBody?.apply {
-            val squash = body.squash.coerceAtLeast(0.5f)
+            val squash = (body.squash * body.stretch).coerceAtLeast(0.5f)
             writes.scale(this, Vector3(1f / squash, body.breathScale * squash, 1f / squash))
             val roll = Quat.fromAxisAngle(Vec3(0f, 0f, 1f), body.roll)
             val tilt = Quat.fromAxisAngle(Vec3(1f, 0f, 0f), -body.pitch)
@@ -473,6 +506,10 @@ class PresentationSystem(
     companion object {
         /** Height of the handle label above the pad top, metres. */
         private const val LABEL_HEIGHT = 0.06f
+        /** Seconds the nest ring takes to settle flat after the hatch, and its height then as a fraction of the raised ring. */
+        private const val NEST_FLATTEN_SEC = 0.6f
+        private const val NEST_FLAT_HEIGHT = 0.06f
+
         /** Seconds the heating lamp takes to shrink away after the hatch, or to come back for a new egg. */
         private const val LAMP_AWAY_SEC = 0.6f
 

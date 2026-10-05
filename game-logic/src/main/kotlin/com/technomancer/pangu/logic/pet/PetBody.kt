@@ -125,6 +125,17 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
     /** Dance style: false wiggles, true spins. */
     var danceSpins = false
 
+    /** Extra squash and stretch from the dance, multiplied onto [squash] (1 = none). */
+    var stretch = 1f
+        private set
+
+    /** Sideways dance steps, pad-local metres, added to [position] when the pet is drawn. */
+    var danceOffset = Vec3.ZERO
+        private set
+    private var danceTime = 0f
+    private var danceBlend = 0f
+    private var danceBeat = -1
+
     private var poseTime = 0f
 
     /** Sets the pet's position directly, e.g. when restoring. */
@@ -169,7 +180,7 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         poseTime = 0f
         sizeFactor = 1f
         updateMood(distress)
-        if (activity == PetActivity.Dancing) updateDance() else spin = 0f
+        updateDance(dt, activity == PetActivity.Dancing)
         updateMotion(dt, activity, facing)
     }
 
@@ -185,16 +196,81 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         }
     }
 
-    /** Dance moves on a 110 BPM beat: a roll wiggle, or a full turn every two bars with hops. */
-    private fun updateDance() {
-        val beat = time * BPM / 60f
-        if (danceSpins) {
-            spin = (beat / 8f % 1f) * 2f * PI.toFloat()
-            val onBeat = (beat % 2f) < 0.25f
-            if (onBeat && hopT < 0f) hopHeight = config.hopHeight * 0.5f * sin(PI.toFloat() * (beat % 2f) / 0.25f)
+    /**
+     * The dance, on a 110 BPM beat that starts when the dance does. Every beat the pet crouches and
+     * springs up with a squash and stretch, leans and steps from side to side, nods, twists its hips
+     * and flicks its antenna. On top of that groove each style has its own move: the wiggle shimmies
+     * double-time every other bar and ends each bar with a jump, and the spin jumps into a full turn
+     * every fourth beat. Everything fades in and out over a third of a second, so the pet eases into
+     * and out of the dance instead of snapping.
+     */
+    private fun updateDance(dt: Float, dancing: Boolean) {
+        if (dancing) {
+            danceTime += dt
+            danceBlend = (danceBlend + dt / DANCE_FADE_SEC).coerceAtMost(1f)
         } else {
-            roll += 0.21f * sin(PI.toFloat() * beat)
-            if ((beat % 1f) < 0.05f) kickAntenna(1.5f)
+            if (danceBlend <= 0f) return
+            danceBlend = (danceBlend - dt / DANCE_FADE_SEC).coerceAtLeast(0f)
+            if (danceBlend <= 0f) {
+                danceTime = 0f
+                danceBeat = -1
+                spin = 0f
+                stretch = 1f
+                danceOffset = Vec3.ZERO
+                if (hopT < 0f && hiccupT < 0f) hopHeight = 0f
+                return
+            }
+        }
+        val pi = PI.toFloat()
+        val beat = danceTime * BPM / 60f
+        val bar = (beat / 8f).toInt()
+        val inBar = beat % 8f
+
+        // The groove: down on the beat, up after it.
+        val spring = sin(2f * pi * (beat % 1f - 0.3f))
+        var hop = config.hopHeight * 0.4f * max(0f, spring)
+        var tall = 0.09f * spring
+        var lean = 0.16f * sin(pi * beat)
+        var step = DANCE_STEP * sin(pi * beat)
+        var twist = 0.3f * sin(pi * beat / 2f)
+        val nod = 0.07f * sin(2f * pi * beat)
+        var turn = 0f
+
+        // The jump: a high hop with a long stretch, used by both styles.
+        fun jump(u: Float, fullTurn: Boolean) {
+            hop = config.hopHeight * 1.2f * sin(pi * u)
+            tall = 0.13f * sin(pi * u) - 0.1f * sin(pi * (u * 4f).coerceAtMost(1f)) * (1f - u)
+            lean *= 0.3f
+            if (fullTurn) {
+                twist = 0f
+                turn = 2f * pi * (u * u * (3f - 2f * u))
+            }
+        }
+        if (danceSpins) {
+            val inFour = beat % 4f
+            if (inFour >= 3f) jump(inFour - 3f, fullTurn = true)
+        } else {
+            if (bar % 2 == 1) {
+                // The shimmy: twice as fast, with wider steps and a bigger twist.
+                lean = 0.11f * sin(2f * pi * beat)
+                step = DANCE_STEP * 2f * sin(pi * beat)
+                twist = 0.45f * sin(pi * beat)
+            }
+            if (inBar >= 7f) jump(inBar - 7f, fullTurn = bar % 2 == 1)
+        }
+
+        val k = danceBlend
+        if (hopT < 0f) hopHeight = hop * k
+        stretch = 1f + tall * k
+        roll += lean * k
+        pitch += nod * k
+        spin = (twist + turn) * k
+        danceOffset = Vec3(cos(yaw) * step * k, 0f, -sin(yaw) * step * k)
+        // The antenna flicks one way, then the other, on each beat.
+        val index = beat.toInt()
+        if (dancing && index != danceBeat) {
+            danceBeat = index
+            kickAntenna(if (index % 2 == 0) DANCE_ANTENNA_KICK else -DANCE_ANTENNA_KICK)
         }
     }
 
@@ -371,6 +447,11 @@ class PetBody(private val config: PetConfig, private val random: IRandom, padRad
         private const val HATCH_SETTLE_SEC = 3f
         private const val NAP_ROLL = -0.1f
         private const val BPM = 110f
+
+        /** Seconds the dance takes to fade in and out, the size of a side step, and the antenna flick on each beat. */
+        private const val DANCE_FADE_SEC = 0.33f
+        private const val DANCE_STEP = 0.018f
+        private const val DANCE_ANTENNA_KICK = 1.8f
         private const val SLUMP = -0.008f
         private const val DROOP = 0.3f
         private const val LOOK_UP = 0.15f
