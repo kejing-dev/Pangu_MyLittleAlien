@@ -7,6 +7,8 @@ import com.technomancer.pangu.ecs.entities.AlienRig
 import com.technomancer.pangu.ecs.entities.HabitatFactory
 import com.technomancer.pangu.ecs.entities.MeshFactory
 import com.technomancer.pangu.ecs.entities.TipMorpher
+import com.technomancer.pangu.ecs.entities.UfoFactory
+import com.technomancer.pangu.ecs.entities.UfoRig
 import com.technomancer.pangu.ecs.entities.applyLook
 import com.technomancer.pangu.ecs.entities.tint
 import com.technomancer.pangu.ecs.toSdk
@@ -42,7 +44,8 @@ class SceneEntities(
     val bubbles: List<Entity> = emptyList(),
     val ball: Entity? = null,
     val crumbs: List<Entity> = emptyList(),
-    val beam: Entity? = null,
+    /** The UFO that takes the pet home; null if its model did not load. */
+    val ufo: UfoRig? = null,
     val skyRing: Entity? = null,
     val pedestal: Entity? = null,
     val egg: EggPresenter? = null,
@@ -107,7 +110,15 @@ class PresentationSystem(
     private val bubbleTransforms = scene.bubbles.mapNotNull { it.transform() }
     private val ballTransform = scene.ball?.transform()
     private val crumbTransforms = scene.crumbs.mapNotNull { it.transform() }
-    private val beamTransform = scene.beam?.transform()
+    private val ufoRoot = scene.ufo?.root?.transform()
+    private val ufoCraft = scene.ufo?.craft?.transform()
+    private val ufoBeam = scene.ufo?.beam?.transform()
+    private val ufoLights = scene.ufo?.lights?.mapNotNull { it.transform() }.orEmpty()
+    private val ufoLightScale = ufoLights.firstOrNull()?.scaleVector?.x ?: 1f
+
+    /** How much of the UFO is showing, 0..1, and the antenna colour its lights were last given. */
+    private var ufoT = 0f
+    private var ufoTint = -1
     private val skyRingTransform = scene.skyRing?.transform()
     private val petRoot = scene.pet?.root?.transform()
     private val petBody = scene.pet?.body?.transform()
@@ -123,6 +134,9 @@ class PresentationSystem(
     private var glowOn: Boolean? = null
     private var time = 0.0
     private var frameDt = 0f
+
+    /** The player's head in pad space on the last frame, for things that turn to face them. */
+    private var lastHead: Vector3? = null
     private var tubT = 0f
     private var lampLit: Boolean? = null
     private var shownLook: PetLook? = null
@@ -181,6 +195,7 @@ class PresentationSystem(
         applyDistress(logic, petShown)
 
         val head = if (pad != null && input.headValid) habitat.convertPositionFrom(input.headPosition.toSdk(), null) else null
+        lastHead = head
         scene.egg?.apply(logic, head, dt)
 
         if (pad != null) {
@@ -478,7 +493,7 @@ class PresentationSystem(
         }
     }
 
-    /** Sky ring over a homesick pet, and the UFO beam when it goes home. */
+    /** Sky ring over a homesick pet, and the UFO when it goes home. */
     private fun applyDistress(logic: PanguLogic, shown: Boolean) {
         val stage = if (shown) logic.pet.stage() else Distress.None
         val body = logic.pet.body
@@ -489,11 +504,50 @@ class PresentationSystem(
         } else {
             writes.scale(skyRingTransform, Vector3.ZERO)
         }
-        if (stage == Distress.WentHome) {
-            writes.scale(beamTransform, Vector3.ONE)
-            beamTransform?.setPosition(Vector3(body.position.x, height * (1f + BEAM_GAP), body.position.z))
-        } else {
-            writes.scale(beamTransform, Vector3.ZERO)
+        applyUfo(logic, stage == Distress.WentHome, height)
+    }
+
+    /**
+     * The UFO that takes the pet home. It grows in above the pet, hovers with a gentle bob and
+     * sway facing the player, its rim lights pulse one after another in the pet's antenna colour,
+     * and its beam reaches down to the pad.
+     */
+    private fun applyUfo(logic: PanguLogic, wanted: Boolean, petHeight: Float) {
+        val root = ufoRoot ?: return
+        ufoT = (ufoT + (if (wanted) frameDt else -frameDt) / UFO_APPEAR_SEC).coerceIn(0f, 1f)
+        if (ufoT <= 0f) {
+            writes.scale(root, Vector3.ZERO)
+            return
+        }
+        val tip = logic.catalog.tipColor(logic.look)
+        if (tip != ufoTint) {
+            ufoTint = tip
+            scene.ufo?.tinted?.forEach { meshes.tint(it, tip) }
+        }
+        val body = logic.pet.body
+        val t = time.toFloat()
+        val bob = UFO_BOB / habitatScale * sin(UFO_BOB_SPEED * t)
+        val y = petHeight + UFO_GAP / habitatScale + bob
+        root.setPosition(Vector3(body.position.x, y, body.position.z))
+        val grow = ufoT * ufoT * (3f - 2f * ufoT)
+        writes.scale(root, if (grow >= 1f) Vector3.ONE else Vector3(grow))
+
+        // The craft turns its face to the player and sways a little as it hovers.
+        val head = lastHead
+        val yaw = if (head != null) atan2(head.x - body.position.x, head.z - body.position.z) else 0f
+        val sway = Quat.fromAxisAngle(Vec3(0f, 0f, 1f), UFO_SWAY * sin(0.9f * t))
+        ufoCraft?.setQuaternion((Quat.fromYaw(yaw) * sway).toSdk())
+
+        ufoLights.forEachIndexed { i, light ->
+            val pulse = 1f + UFO_LIGHT_PULSE * sin(UFO_LIGHT_SPEED * t - i * (2f * PI.toFloat() / ufoLights.size))
+            light.setScaleVector(Vector3(ufoLightScale * pulse))
+        }
+
+        // The beam runs from the lens down to the pad, whatever height the UFO is at.
+        val length = (y / UfoFactory.SCALE + UfoFactory.LENS_Y).coerceAtLeast(0.1f)
+        ufoBeam?.apply {
+            setPosition(Vector3(0f, UfoFactory.LENS_Y - length, 0f))
+            setScaleVector(Vector3(1f, length, 1f))
         }
     }
 
@@ -578,7 +632,14 @@ class PresentationSystem(
             return 1f + (c + 1f) * u * u * u + c * u * u
         }
         private const val RING_GAP = 0.12f
-        private const val BEAM_GAP = 1.2f
+        /** The UFO: seconds to grow in, its height above the pet's head and its bob (metres), its sway (radians) and the rim lights' pulse. */
+        private const val UFO_APPEAR_SEC = 0.6f
+        private const val UFO_GAP = 0.16f
+        private const val UFO_BOB = 0.008f
+        private const val UFO_BOB_SPEED = 1.6f
+        private const val UFO_SWAY = 0.05f
+        private const val UFO_LIGHT_PULSE = 0.3f
+        private const val UFO_LIGHT_SPEED = 3.5f
         private val TRAY_SCALE = Vector3(1f, 1f, 0.6f)
     }
 }

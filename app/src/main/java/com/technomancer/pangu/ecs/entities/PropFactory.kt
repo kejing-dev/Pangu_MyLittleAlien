@@ -5,15 +5,10 @@ import com.pico.spatial.core.ecs.Entity
 import com.pico.spatial.core.ecs.GroundShadowComponent
 import com.pico.spatial.core.ecs.HoverEffectComponent
 import com.pico.spatial.core.ecs.InteractableComponent
-import com.pico.spatial.core.ecs.ModelEntity
-import com.pico.spatial.core.ecs.TransformComponent
-import com.pico.spatial.core.ecs.resource.BlendingMode
 import com.pico.spatial.core.ecs.resource.PhysicsMaterialResource
 import com.pico.spatial.core.ecs.resource.ShapeResource
-import com.pico.spatial.core.ecs.resource.UnlitMaterial
 import com.pico.spatial.core.math.Vector3
 import com.technomancer.pangu.ecs.components.TagComponent
-import com.technomancer.pangu.ecs.rgb
 import com.technomancer.pangu.ecs.toSdk
 import com.technomancer.pangu.logic.art.MeshData
 import com.technomancer.pangu.logic.art.PrimitiveMeshes
@@ -21,7 +16,7 @@ import com.technomancer.pangu.logic.input.TargetId
 import com.technomancer.pangu.logic.pet.BallSim
 import com.technomancer.pangu.logic.pet.PetWorld
 
-/** Care props, all gray-box shapes: snack tray and snacks, tub and bubbles, ball, crumbs, UFO beam and sky ring. */
+/** Care props, all gray-box shapes: snack tray and snacks, tub and bubbles, ball, crumbs and the sky ring. */
 class PropFactory(private val meshes: MeshFactory) {
 
     private val parts: Map<String, MeshData> by lazy {
@@ -37,8 +32,6 @@ class PropFactory(private val meshes: MeshFactory) {
             BUBBLE to PrimitiveMeshes.sphere(0.012f, rings = 8, segments = 12),
             BALL to PrimitiveMeshes.sphere(BallSim.RADIUS),
             CRUMB to PrimitiveMeshes.octahedron(0.009f),
-            BEAM_DISC to PrimitiveMeshes.cylinder(0.125f, 0.02f, segments = 48),
-            BEAM_CONE to PrimitiveMeshes.cone(0.215f, 0.07f, 0.5f, segments = 48),
             SKY_RING to PrimitiveMeshes.torus(0.07f, 0.004f, segments = 40, sides = 8),
         )
     }
@@ -82,28 +75,8 @@ class PropFactory(private val meshes: MeshFactory) {
         interactive(this, TargetId.crumb(index), 0.02f)
     }
 
-    /** The UFO that takes the pet home: a butter disc with a see-through light cone below it. */
-    fun createBeam(): Entity {
-        val disc = part(BEAM_DISC, BUTTER)
-        val cone = ModelEntity(meshes.mesh(parts.getValue(BEAM_CONE), BEAM_CONE), beamMaterial).apply {
-            setName(BEAM_CONE)
-            components[TransformComponent::class.java]?.setPosition(Vector3(0f, -0.5f, 0f))
-        }
-        disc.addChild(cone)
-        return disc
-    }
-
     /** Dashed-looking butter ring that hovers over a homesick pet. */
     fun createSkyRing(): Entity = part(SKY_RING, BUTTER)
-
-    private val beamMaterial: UnlitMaterial by lazy {
-        UnlitMaterial.create(BlendingMode.TRANSPARENT).apply {
-            setBaseColor(rgb(BUTTER, 0.35f))
-            setOpacity(0.35f)
-            setApplyToneMapping(false)
-            toGlobal()
-        }
-    }
 
     private fun interactive(entity: Entity, targetId: Int, radius: Float) {
         entity.components.set(InteractableComponent())
@@ -119,8 +92,6 @@ class PropFactory(private val meshes: MeshFactory) {
         private const val BUBBLE = "PH_Bubble"
         const val BALL = "PH_Ball"
         private const val CRUMB = "PH_Crumb"
-        const val BEAM_DISC = "PH_Beam"
-        private const val BEAM_CONE = "PH_BeamCone"
         const val SKY_RING = "PH_SkyRing"
 
         private const val TRAY_COLOR = 0xECE4D7

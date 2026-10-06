@@ -66,6 +66,7 @@ import com.technomancer.pangu.ecs.entities.PropFactory
 import com.technomancer.pangu.dev.DevTools
 import com.technomancer.pangu.ecs.entities.TipMorpher
 import com.technomancer.pangu.ecs.entities.ToonMaterial
+import com.technomancer.pangu.ecs.entities.UfoFactory
 import com.technomancer.pangu.ecs.systems.SceneEntities
 import com.technomancer.pangu.ecs.entities.MeshFactory
 import com.technomancer.pangu.ecs.systems.InputSystem
@@ -327,6 +328,7 @@ fun PanguStage() {
         val habitatFactory = HabitatFactory(meshes)
         val alienFactory = AlienFactory(meshes)
         val propFactory = PropFactory(meshes)
+        val ufoFactory = UfoFactory(meshes)
         val eggFactory = EggFactory(meshes)
         val shellColor = logic.catalog.bodyColor(logic.look)
         perf.milestone("head pose ready")
@@ -341,6 +343,10 @@ fun PanguStage() {
             listOf(
                 async { habitatFactory.preloadMeshes() },
                 async { propFactory.preloadMeshes() },
+                async {
+                    runCatching { ufoFactory.preload(context.assets) }
+                        .onFailure { Log.e(TAG, "Could not load the UFO model", it) }
+                },
                 async { eggFactory.preloadMeshes(shellColor) },
             ).awaitAll()
             alien.await()
@@ -358,7 +364,7 @@ fun PanguStage() {
         val (tub, bubbles) = propFactory.createTub().also { habitat.addChild(it.first) }
         val ball = propFactory.createBall().also { habitat.addChild(it) }
         val crumbs = List(MAX_CRUMBS) { i -> propFactory.createCrumb(i).also { habitat.addChild(it) } }
-        val beam = propFactory.createBeam().also { habitat.addChild(it) }
+        val ufo = ufoFactory.create()?.also { habitat.addChild(it.root) }
         val skyRing = propFactory.createSkyRing().also { habitat.addChild(it) }
         val eggRig = eggFactory.create(shellColor, alienFactory.tipShapes).also { habitat.addChild(it.root) }
         val nest = eggFactory.createNestProps(placement.habitatScale).also { props ->
@@ -392,7 +398,7 @@ fun PanguStage() {
         scene.presentation = PresentationSystem(
             root,
             habitat,
-            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, beam, skyRing, nest.pedestal, eggPresenter, devPanel),
+            SceneEntities(infoPanel, handleLabel, pie, rig, tray, foods, tub, bubbles, ball, crumbs, ufo, skyRing, nest.pedestal, eggPresenter, devPanel),
             uiConfig,
             placement.habitatScale,
             meshes,

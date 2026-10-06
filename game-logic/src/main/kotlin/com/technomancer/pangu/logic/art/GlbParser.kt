@@ -33,9 +33,26 @@ class AlienParts(val parts: Map<String, MeshData>) {
 }
 
 /**
- * Minimal glTF 2.0 binary reader for the alien: reads each named node's single mesh primitive
- * (float VEC3 POSITION and NORMAL, uint16 or uint32 indices). Node transforms are not applied;
- * the alien file has none.
+ * One node of a GLB scene: its mesh (if any), where it sits under its [parent] (an index into the
+ * node list, -1 for a root) and the colour of its material as 0xRRGGBB with [opacity].
+ * Nodes that reuse a mesh share one [mesh] object and the same [meshName].
+ */
+class GlbNode(
+    val name: String,
+    val mesh: MeshData?,
+    val meshName: String,
+    val parent: Int,
+    val translation: Vec3,
+    val scale: Vec3,
+    val color: Int,
+    val opacity: Float,
+)
+
+/**
+ * Minimal glTF 2.0 binary reader: each named node's single mesh primitive (float VEC3 POSITION
+ * and NORMAL, uint16 or uint32 indices). [parse] reads the alien, whose nodes have no transforms.
+ * [parseScene] reads a whole node tree with translations, scales, material colours and baked
+ * vertex colours (the UFO); rotations are not read, as neither file has any.
  */
 object GlbParser {
     private const val MAGIC = 0x46546C67 // "glTF"
@@ -82,6 +99,86 @@ object GlbParser {
         return AlienParts(parts)
     }
 
+    /**
+     * Reads every node in file order. glTF colours are linear; they come back in display (sRGB)
+     * space like the rest of the game's colours.
+     */
+    fun parseScene(bytes: ByteArray): List<GlbNode> {
+        val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        require(buf.getInt(0) == MAGIC) { "not a GLB file" }
+        var offset = 12
+        var json: JsonObject? = null
+        var binStart = -1
+        while (offset + 8 <= bytes.size) {
+            val length = buf.getInt(offset)
+            when (buf.getInt(offset + 4)) {
+                CHUNK_JSON -> json = Json.parseToJsonElement(String(bytes, offset + 8, length, Charsets.UTF_8)).jsonObject
+                CHUNK_BIN -> binStart = offset + 8
+            }
+            offset += 8 + length
+        }
+        val root = requireNotNull(json) { "GLB has no JSON chunk" }
+        require(binStart >= 0) { "GLB has no BIN chunk" }
+
+        val reader = AccessorReader(buf, binStart, root.array("accessors"), root.array("bufferViews"))
+        val meshes = root.array("meshes")
+        val materials = root.array("materials")
+        val nodes = root.array("nodes")
+        val parents = IntArray(nodes.size) { -1 }
+        nodes.forEachIndexed { i, node ->
+            node.jsonObject["children"]?.jsonArray?.forEach { parents[it.jsonPrimitive.int] = i }
+        }
+        val meshCache = HashMap<Int, MeshData>()
+        return nodes.mapIndexed { i, node ->
+            val n = node.jsonObject
+            val meshIndex = n["mesh"]?.jsonPrimitive?.int
+            var mesh: MeshData? = null
+            var meshName = ""
+            var color = 0xFFFFFF
+            var opacity = 1f
+            if (meshIndex != null) {
+                val m = meshes[meshIndex].jsonObject
+                meshName = m["name"]?.jsonPrimitive?.content ?: "mesh$meshIndex"
+                val prim = m.array("primitives")[0].jsonObject
+                mesh = meshCache.getOrPut(meshIndex) {
+                    val attrs = prim["attributes"]!!.jsonObject
+                    val positions = reader.floats(attrs["POSITION"]!!.jsonPrimitive.int, 3)
+                    val normals = reader.floats(attrs["NORMAL"]!!.jsonPrimitive.int, 3)
+                    val colors = attrs["COLOR_0"]?.jsonPrimitive?.int?.let { reader.colors(it) } ?: FloatArray(0)
+                    MeshData(positions, normals, colors, reader.indices(prim["indices"]!!.jsonPrimitive.int))
+                }
+                val factor = prim["material"]?.jsonPrimitive?.int
+                    ?.let { materials[it].jsonObject["pbrMetallicRoughness"]?.jsonObject?.get("baseColorFactor")?.jsonArray }
+                if (factor != null) {
+                    fun channel(k: Int) = (linearToDisplay(factor[k].jsonPrimitive.content.toFloat()) * 255f + 0.5f).toInt().coerceIn(0, 255)
+                    color = (channel(0) shl 16) or (channel(1) shl 8) or channel(2)
+                    opacity = factor[3].jsonPrimitive.content.toFloat()
+                }
+            }
+            GlbNode(
+                name = n["name"]?.jsonPrimitive?.content ?: "node$i",
+                mesh = mesh,
+                meshName = meshName,
+                parent = parents[i],
+                translation = n.vec3("translation", 0f),
+                scale = n.vec3("scale", 1f),
+                color = color,
+                opacity = opacity,
+            )
+        }
+    }
+
+    private fun JsonObject.vec3(key: String, fallback: Float): Vec3 {
+        val a = this[key]?.jsonArray ?: return Vec3(fallback, fallback, fallback)
+        return Vec3(a[0].jsonPrimitive.content.toFloat(), a[1].jsonPrimitive.content.toFloat(), a[2].jsonPrimitive.content.toFloat())
+    }
+
+    /** Linear light to display (sRGB) for one channel. */
+    private fun linearToDisplay(v: Float): Float {
+        val c = v.coerceIn(0f, 1f)
+        return if (c <= 0.0031308f) 12.92f * c else 1.055f * Math.pow(c.toDouble(), 1.0 / 2.4).toFloat() - 0.055f
+    }
+
     private fun JsonObject.array(key: String): JsonArray = this[key]?.jsonArray ?: JsonArray(emptyList())
 
     private class AccessorReader(
@@ -106,6 +203,21 @@ object GlbParser {
             val out = FloatArray(count * components)
             for (i in 0 until count) {
                 for (c in 0 until components) out[i * components + c] = buf.getFloat(start + i * step + c * 4)
+            }
+            return out
+        }
+
+        /** A float VEC3 or VEC4 colour accessor as RGBA in display space (alpha 1 when the file has none). */
+        fun colors(index: Int): FloatArray {
+            val (a, start, stride) = location(index)
+            require(a["componentType"]!!.jsonPrimitive.int == FLOAT) { "colour accessor $index is not float" }
+            val components = if (a["type"]!!.jsonPrimitive.content == "VEC4") 4 else 3
+            val count = a["count"]!!.jsonPrimitive.int
+            val step = if (stride > 0) stride else components * 4
+            val out = FloatArray(count * 4)
+            for (i in 0 until count) {
+                for (c in 0 until 3) out[i * 4 + c] = linearToDisplay(buf.getFloat(start + i * step + c * 4))
+                out[i * 4 + 3] = if (components == 4) buf.getFloat(start + i * step + 12) else 1f
             }
             return out
         }
